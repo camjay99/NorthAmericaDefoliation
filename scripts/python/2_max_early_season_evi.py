@@ -5,6 +5,7 @@ import ee
 
 import geometries
 import preprocessing
+import submission
 
 
 ##############################################################
@@ -16,6 +17,9 @@ parser = argparse.ArgumentParser(
 
 # The script will ONLY submit the run when -s or --submit is included.
 parser.add_argument('--submit', '-s', action='store_true')
+
+# The script will ONLY create image manifests when -m or --create_manifests is included.
+parser.add_argument('--create_manifests', '-m', action='store_true')
 
 # Whether to export results to a cloud storage bucket. If true,
 # `bucket` must also be set.
@@ -181,69 +185,38 @@ for i in range(331, gridSize):
         #################################
 
         if args.submit:
-            if args.cloudstorage:
-                # Save in a Cloud Storage Bucket
-                if gridSize > 1:
-                    asset_name = f'{assetID}_{year}_tile_{i}'
-                    image_name = f'{file_name_prefix}_{year}_tile_{i}'
-                    description = f'{description_base}_{year}_tile_{i}'
-                else:
-                    asset_name = f'{assetID}_{year}'
-                    image_name = f'{file_name_prefix}_{year}'
-                    description = f'{description_base}_{year}'
-
-                task = ee.batch.Export.image.toCloudStorage(
-                    image=max_evi,
-                    description=description,
-                    bucket=args.bucket,
-                    fileNamePrefix=image_name,
-                    region=gridCell,
-                    scale=preprocessing.resolutions[args.data],
-                    crs=args.crs,
-                    maxPixels=1e10,
-                    formatOptions={
-                        'cloudOptimized': True,
-                    }
-                )
-                task.start()
-
-                # Create an image manifest for adding image as an asset
-                image_manifests[f"{year}_{i}"] = {
-                    'name': asset_name,
-                    'properties': {
-                        'source':args.data,
-                        'model_start':args.model_start,
-                        'model_end':args.model_end,
-                        'window':args.window,
-                        'max':args.max,
-                        'min':args.min,
-                        'year':year,
-                        'project':'NorthAmerica'
-                    },
-                    'tilesets': [
-                        {'id': '0', 'sources': [ {'uris': [f'gs://{args.bucket}/{image_name}.tif']}]}
-                    ],
-                    'startTime': f'{year}-01-01T00:00:00.000000000Z',
-                    'endTime': f'{year+1}-01-01T00:00:00.000000000Z'
-                }
-            else:
-                imageName = f'{assetID}_{year}'
-                description = f'{description_base}_{year}'
-                if gridSize > 1:
-                    imageName = f'{assetID}_{year}_tile_{i}'
-                    description = f'{description}_tile_{i}'
-
-                task = ee.batch.Export.image.toAsset(
-                    image=max_evi,
-                    description=description,
-                    assetId=imageName,
-                    region=gridCell,
-                    scale=preprocessing.resolutions[args.data],
-                    crs=args.crs,
-                    pyramidingPolicy={'.default': 'mean'},
-                    maxPixels=1e10
-                )
-                task.start()
+            submission.submit_job(
+                image=max_evi,
+                assetID=assetID,
+                file_name_prefix=file_name_prefix,
+                description_base=description_base,
+                year=year,
+                scale=preprocessing.resolutions[args.data],
+                crs=args.crs,
+                region=gridCell,
+                cloudstorage=args.cloudstorage,
+                bucket=args.bucket,
+                i=i
+            )
+        if args.create_manifests:
+            image_manifests[f"{year}_{i}"] = submission.create_manifest(
+                assetID=assetID,
+                file_name_prefix=file_name_prefix,
+                description_base=description_base,
+                year=year,
+                properties={
+                    'source': args.data,
+                    'model_start': args.model_start,
+                    'model_end': args.model_end,
+                    'window': args.window,
+                    'min': args.min,
+                    'max': args.max,
+                    'year': year,
+                    'project': 'NorthAmerica'
+                },
+                bucket=args.bucket,
+                i=i
+            )
 if args.cloudstorage:
     with open("image_manifests.json", 'w')  as f:
         json.dump(image_manifests, f)
