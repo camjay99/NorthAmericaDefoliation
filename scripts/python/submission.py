@@ -1,3 +1,5 @@
+from time import time
+
 import ee
 
 def submit_job(
@@ -5,13 +7,13 @@ def submit_job(
         assetID,
         file_name_prefix,
         description_base,
-        year,
         scale,
         crs,
         region,
         cloudstorage,
         bucket=None,
-        i=-1
+        year=None,
+        i=None
 ):
     asset_name, image_name, description = _create_name_description(
         assetID, file_name_prefix, description_base, year, i
@@ -46,18 +48,32 @@ def submit_job(
         )
         task.start()
 
+    # Wait to not spam task submissions to GEE
+    time.sleep(0.1)
+
 def create_manifest(
         assetID,
         file_name_prefix,
         description_base,
-        year,
         properties,
         bucket,
-        i=-1
+        year=None,
+        model_start=None,
+        model_end=None,
+        i=None
 ):
     asset_name, image_name, _ = _create_name_description(
         assetID, file_name_prefix, description_base, year, i
     )
+
+    if model_start is not None:
+        start = model_start
+        end = model_end
+    elif year is not None:
+        start = year
+        end = year + 1
+    else:
+        raise ValueError("Either year or model_start/model_end must be provided.")
 
     return {
         'name': asset_name,
@@ -65,18 +81,19 @@ def create_manifest(
         'tilesets': [
             {'id': '0', 'sources': [ {'uris': [f'gs://{bucket}/{image_name}.tif']}]}
         ],
-        'startTime': f'{year}-01-01T00:00:00.000000000Z',
-        'endTime': f'{year+1}-01-01T00:00:00.000000000Z'
+        'startTime': f'{start}-01-01T00:00:00.000000000Z',
+        'endTime': f'{end}-01-01T00:00:00.000000000Z'
     }
 
-def _create_name_description(assetID, file_name_prefix, description_base, year, i=-1):
-    if i != -1:
-        asset_name = f'{assetID}_{year}_tile_{i}'
-        image_name = f'{file_name_prefix}_{year}_tile_{i}'
-        description = f'{description_base}_{year}_tile_{i}'
-    else:
-        asset_name = f'{assetID}_{year}'
-        image_name = f'{file_name_prefix}_{year}'
-        description = f'{description_base}_{year}'
+def _create_name_description(assetID, file_name_prefix, description_base, year=None, i=None):
+    suffix = ''
+    if year is not None:
+        suffix = f'_{year}'
+    if i is not None:
+        suffix += f'_tile_{i}'
+
+    asset_name = assetID + suffix
+    image_name = file_name_prefix + suffix
+    description = description_base + suffix
 
     return asset_name, image_name, description

@@ -1,11 +1,11 @@
 import argparse
 import json
+import time
 
 import ee
 
 import geometries
 import preprocessing
-import submission
 
 
 ##############################################################
@@ -17,9 +17,6 @@ parser = argparse.ArgumentParser(
 
 # The script will ONLY submit the run when -s or --submit is included.
 parser.add_argument('--submit', '-s', action='store_true')
-
-# The script will ONLY create image manifests when -m or --create_manifests is included.
-parser.add_argument('--create_manifests', '-m', action='store_true')
 
 # Whether to export results to a cloud storage bucket. If true,
 # `bucket` must also be set.
@@ -131,7 +128,7 @@ grid = geometry.coveringGrid(proj)
 gridSize = grid.size().getInfo()
 gridList = grid.toList(gridSize)
 
-for i in range(gridSize):
+for i in range(289, 290):
     gridCell = ee.Feature(gridList.get(i)).geometry()
 
     ##################################################################
@@ -220,13 +217,13 @@ for i in range(gridSize):
     # Extract SoS and EoS
     ##################################################
 
-    phenometrics = ratio_diffs.reduce(
-        ee.Reducer.min(2).combine(
-            ee.Reducer.max(2), "", True))
-    SoS = phenometrics.select('min1').rename('SoS')
-    EoS = phenometrics.select('max1').rename('EoS')
+    # Minimize errors by limiting search for SoS/EoS to appropriate times of year
+    SoS = ratio_diffs.filter(ee.Filter.dayOfYear(30, 200)).reduce(ee.Reducer.min(2))
+    SoS = SoS.select('min1').rename('SoS')
+    EoS = ratio_diffs.filter(ee.Filter.dayOfYear(200, 330)).reduce(ee.Reducer.max(2))
+    EoS = EoS.select('max1').rename('EoS')
     pheno = (EoS.addBands(SoS)
-                .set('method', 'Maximum Seperability')
+                .set('method', 'Maximum Seperability Modified')
                 .set('source', args.data)
                 .set('start', args.start)
                 .set('end', args.end)
@@ -237,35 +234,73 @@ for i in range(gridSize):
     # Export results
     ##################################################
 
+    # Save full image to assets
     if args.submit:
-        submission.submit_job(
-            image=pheno,
-            assetID=assetID,
-            file_name_prefix=file_name_prefix,
-            description_base=description_base,
-            scale=preprocessing.resolutions[args.data],
-            crs=args.crs,
-            region=gridCell,
-            cloudstorage=args.cloudstorage,
-            bucket=args.bucket,
-            i=i
-        )
-    if args.create_manifests:
-        image_manifests[i] = submission.create_manifest(
-            assetID=assetID,
-            file_name_prefix=file_name_prefix,
-            description_base=description_base,
-            properties={
-                'source':args.data,
-                'start':args.start,
-                'end':args.end,
-                'method':'Maximum Separability',
-                'project':'NorthAmerica'
-            },
-            bucket=args.bucket,
-            i=i
-        )
-        
+        if args.cloudstorage:
+            # Save in a Cloud Storage Bucket
+            if gridSize > 1:
+                asset_name = f'{assetID}_tile_{i}'
+                image_name = f'{file_name_prefix}_tile_{i}'
+                description = f'{description_base}_tile_{i}'
+            else:
+                asset_name = assetID
+                image_name = file_name_prefix
+                description = description_base
+            
+            task = ee.batch.Export.image.toCloudStorage(
+                image=pheno,
+                description=description,
+                bucket=args.bucket,
+                fileNamePrefix=image_name,
+                region=gridCell,
+                scale=preprocessing.resolutions[args.data],
+                shardSize=128,
+                crs=args.crs,
+                maxPixels=1e10,
+                formatOptions={
+                    'cloudOptimized': True,
+                }
+            )
+            task.start()
+
+            # Create an image manifest for adding image as an asset
+            image_manifests[i] = {
+                'name': asset_name,
+                'properties': {
+                    'source':args.data,
+                    'start':args.start,
+                    'end':args.end,
+                    'method':'Maximum Separability',
+                    'project':'NorthAmerica'
+                },
+                'tilesets': [
+                    {'id': '0', 'sources': [ {'uris': [f'gs://{args.bucket}/{image_name}.tif']}]}
+                ],
+                'startTime': f'{args.start}-01-01T00:00:00.000000000Z',
+                'endTime': f'{args.end+1}-01-01T00:00:00.000000000Z'
+            }
+        else:
+            # Save as an Earth Engine Asset
+            if gridSize > 1:
+                image_name = f'{assetID}_tile_{i}'
+                description = f'{description_base}_tile_{i}'
+            else:
+                image_name = assetID
+                description = description_base
+
+            task = ee.batch.Export.image.toAsset(
+                image=pheno,
+                description=description,
+                assetId=image_name,
+                region=gridCell, 
+                scale=preprocessing.resolutions[args.data],
+                crs=args.crs,
+                pyramidingPolicy={'.default': 'mean'},
+                maxPixels=1e10
+            )                
+            task.start()
+        # Wait to not spam task submissions to GEE
+        time.sleep(0.1)
 if args.cloudstorage:
     with open("image_manifests.json", 'w')  as f:
         json.dump(image_manifests, f)

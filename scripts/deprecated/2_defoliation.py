@@ -5,7 +5,6 @@ import ee
 
 import geometries
 import preprocessing
-import submission
 
 
 ##############################################################
@@ -17,9 +16,6 @@ parser = argparse.ArgumentParser(
 
 # The script will ONLY submit the run when -s or --submit is included.
 parser.add_argument('--submit', '-s', action='store_true')
-
-# The script will ONLY create image manifests when -m or --create_manifests is included.
-parser.add_argument('--create_manifests', '-m', action='store_true')
 
 # Whether to export results to a cloud storage bucket. If true,
 # `bucket` must also be set.
@@ -107,11 +103,11 @@ else:
 
 if args.cloudstorage:
     assert (args.bucket is not None), "Must specify bucket if exporting to cloud storage."
-    file_name_prefix = f'defoliation_score_{name}/defoliation_score_v3_{args.data}'
+    file_name_prefix = f'defoliation_score_{name}/defoliation_score_v2_{args.data}'
     image_manifests = {}
     if args.rescale:
         file_name_prefix += '_rescaled'
-assetID = f'projects/{args.project}/assets/defoliation_score_{name}/defoliation_score_v3_{args.data}'
+assetID = f'projects/{args.project}/assets/defoliation_score_{name}/defoliation_score_v2_{args.data}'
 description_base = f'{name}_Defoliation_{args.data}'
 if args.rescale:
     assetID += '_rescaled'
@@ -128,11 +124,7 @@ model_coll = (ee.ImageCollection(f'projects/{args.project}/assets/seasonal_trend
               .filter(ee.Filter.eq('method', 'Theil-Sen'))
               .filter(ee.Filter.eq('source', args.data))
               .filter(ee.Filter.eq('project', 'NorthAmerica')))
-swir_coll = (ee.ImageCollection(f'projects/{args.project}/assets/swir_summary_{name}')
-             #.filter(ee.Filter.eq('start', args.model_start))
-             #.filter(ee.Filter.eq('end', args.model_end))
-             .filter(ee.Filter.eq('source', args.data))
-             .filter(ee.Filter.eq('project', 'NorthAmerica')))
+
 
 ##################################################################
 # Split study regions into grid cells of specified size.
@@ -148,7 +140,7 @@ grid = geometry.coveringGrid(proj)
 gridSize = grid.size().getInfo()
 gridList = grid.toList(gridSize)
 
-for i in range(gridSize):
+for i in [44, 62, 157, 189]:
     gridCell = ee.Feature(gridList.get(i)).geometry()
 
     ##################################################################
@@ -159,10 +151,9 @@ for i in range(gridSize):
     # gridCells with some corners missing data.
     phenology = pheno_coll.filterBounds(gridCell).max() 
     models = model_coll.filterBounds(gridCell)
-    swir_summary = swir_coll.filterBounds(gridCell)
     
-    # Decompress models
-    def decompress_model(image):
+    # Uncompress models
+    def decompress(image):
         image = image.updateMask(image) # Mask 0s, as sometimes the data is available in overlapping tiles
         min_slope = ee.Number(image.get('min_slope'))
         max_slope = ee.Number(image.get('max_slope'))
@@ -177,50 +168,25 @@ for i in range(gridSize):
                        .multiply(max_intercept.subtract(min_intercept).divide(65_535))
                        .add(min_intercept))
         return ee.Image([slope, offset])
-    models = models.map(decompress_model).mosaic().unmask()
+    models = models.map(decompress).mosaic().unmask()
 
-    # Decompress SWIR summary
-    def decompress_swir(image):
-        image = image.updateMask(image) # Mask 0s, as sometimes the data is available in overlapping tiles
-        min_swir = ee.Number(image.get('min'))
-        max_swir = ee.Number(image.get('max'))
-        image = (image.float()
-                      .multiply(max_swir.subtract(min_swir).divide(65_535))
-                      .add(min_swir))
-        return image
-    swir_summary = swir_summary.map(decompress_swir).mosaic().unmask()
-    
-    # Compute defoliation score
     years = list(range(args.start, args.end + 1))
 
-    for year in years:
+    for year in [2021]:
         start_date = ee.Date.fromYMD(year, 1, 1)
         end_date = ee.Date.fromYMD(year + 1, 1, 1)
 
         if args.data == 'HLS':
             col = preprocessing.preprocess_HLS(start_date, end_date,
-                                               gridCell, 
-                                               160, 210,
-                                               phenology)
+                                               gridCell, phenology)
+
+        if args.rescale:
+            col = preprocessing.rescale_years(col, args.start, args.end)
 
         
         ######################################
         # Estimate defoliation in given window
         ######################################
-
-        # Remove SWIR1 outliers
-        def mask_swir_outliers(image):
-            # Must be an outlier in both SWIR1 and SWIR2.
-            swir1 = image.select('SWIR1')
-            swir1_mask = swir1.lte(swir_summary.select('mean_SWIR1')
-                            .subtract(swir_summary.select('stddev_SWIR1').multiply(3)))
-            swir2 = image.select('SWIR2')
-            swir2_mask = swir2.lte(swir_summary.select('mean_SWIR2')
-                            .subtract(swir_summary.select('stddev_SWIR2').multiply(3)))
-            return image.updateMask(swir1_mask.And(swir2_mask).Not())
-        
-
-        col = col.map(mask_swir_outliers)
 
         # Calculate anomaly
         def calc_anom(image):
@@ -234,10 +200,10 @@ for i in range(gridSize):
 
         def calc_statistics(images): 
             images = images.map(calc_anom)
-            mean_intensity = images.select("EVI_anom").mean().rename("mean_intensity")
+            mean_intensity = images.select("EVI_anom").filter(ee.Filter.dayOfYear(161, 208)).mean().rename("mean_intensity")
 
             return mean_intensity
-
+        
         defol = calc_statistics(col)
         defol = (defol.set('source', args.data)
                       .set('rescaled', args.rescale)
@@ -246,8 +212,7 @@ for i in range(gridSize):
                       .set('min', args.min)
                       .set('max', args.max)
                       .set('year', year)
-                      .set('project', 'NorthAmerica')
-                      .set('method', 'Theil-Sen SWIR1'))
+                      .set('project', 'NorthAmerica'))
         defol = (defol.subtract(args.min)
                     .divide(args.max-args.min).multiply(65_535).uint16())
 
@@ -257,39 +222,69 @@ for i in range(gridSize):
         #################################
 
         if args.submit:
-            submission.submit_job(
-                image=defol,
-                assetID=assetID,
-                file_name_prefix=file_name_prefix,
-                description_base=description_base,
-                year=year,
-                scale=preprocessing.resolutions[args.data],
-                crs=args.crs,
-                region=gridCell,
-                cloudstorage=args.cloudstorage,
-                bucket=args.bucket,
-                i=i
-            )
-        if args.create_manifests:
-            image_manifests[f"{year}_{i}"] = submission.create_manifest(
-                assetID=assetID,
-                file_name_prefix=file_name_prefix,
-                description_base=description_base,
-                year=year,
-                properties={
-                    'source':args.data,
-                    'start':args.model_start,
-                    'end':args.model_end,
-                    'max':args.max,
-                    'min':args.min,
-                    'rescaled':str(args.rescale),
-                    'year':year,
-                    'project':'NorthAmerica',
-                    'method':'Theil-Sen SWIR1'
-                },
-                bucket=args.bucket,
-                i=i
-            )
+            if args.cloudstorage:
+                # Save in a Cloud Storage Bucket
+                if gridSize > 1:
+                    asset_name = f'{assetID}_{year}_tile_{i}'
+                    image_name = f'{file_name_prefix}_{year}_tile_{i}'
+                    description = f'{description_base}_{year}_tile_{i}'
+                else:
+                    asset_name = f'{assetID}_{year}'
+                    image_name = f'{file_name_prefix}_{year}'
+                    description = f'{description_base}_{year}'
+
+                task = ee.batch.Export.image.toCloudStorage(
+                    image=defol,
+                    description=description,
+                    bucket=args.bucket,
+                    fileNamePrefix=image_name,
+                    region=gridCell,
+                    scale=preprocessing.resolutions[args.data],
+                    crs=args.crs,
+                    maxPixels=1e10,
+                    formatOptions={
+                        'cloudOptimized': True,
+                    }
+                )
+                task.start()
+                
+                # Create an image manifest for adding image as an asset
+                image_manifests[f"{year}_{i}"] = {
+                    'name': asset_name,
+                    'properties': {
+                        'source':args.data,
+                        'start':args.model_start,
+                        'end':args.model_end,
+                        'max':args.max,
+                        'min':args.min,
+                        'rescaled':str(args.rescale),
+                        'year':year,
+                        'project':'NorthAmerica'
+                    },
+                    'tilesets': [
+                        {'id': '0', 'sources': [ {'uris': [f'gs://{args.bucket}/{image_name}.tif']}]}
+                    ],
+                    'startTime': f'{args.start}-01-01T00:00:00.000000000Z',
+                    'endTime': f'{args.end+1}-01-01T00:00:00.000000000Z'
+                }
+            else:
+                imageName = f'{assetID}_{year}'
+                description = f'{description_base}_{year}'
+                if gridSize > 1:
+                    imageName = f'{assetID}_tile_{i}'
+                    description = f'{description}_tile_{i}'
+
+                task = ee.batch.Export.image.toAsset(
+                    image=defol,
+                    description=description,
+                    assetId=imageName,
+                    region=gridCell, 
+                    scale=preprocessing.resolutions[args.data],
+                    crs=args.crs,
+                    pyramidingPolicy={'.default': 'mean'},
+                    maxPixels=1e10
+                )
+                task.start()
 if args.cloudstorage:
     with open("image_manifests.json", 'w')  as f:
         json.dump(image_manifests, f)

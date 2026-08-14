@@ -5,6 +5,7 @@ import ee
 
 import geometries
 import preprocessing
+import submission
 
 
 ##############################################################
@@ -16,6 +17,9 @@ parser = argparse.ArgumentParser(
 
 # The script will ONLY submit the run when -s or --submit is included.
 parser.add_argument('--submit', '-s', action='store_true')
+
+# The script will ONLY create image manifests when -m or --create_manifests is included.
+parser.add_argument('--create_manifests', '-m', action='store_true')
 
 # Whether to export results to a cloud storage bucket. If true,
 # `bucket` must also be set.
@@ -151,66 +155,33 @@ for i in range(gridSize):
     #################################
 
     if args.submit:
-        if args.cloudstorage:
-            # Save in a Cloud Storage Bucket
-            if gridSize > 1:
-                asset_name = f'{assetID}_tile_{i}'
-                image_name = f'{file_name_prefix}_tile_{i}'
-                description = f'{description_base}_tile_{i}'
-            else:
-                asset_name = assetID
-                image_name = file_name_prefix
-                description = description_base
-
-            # task = ee.batch.Export.image.toCloudStorage(
-            #     image=swir_summary,
-            #     description=description,
-            #     bucket=args.bucket,
-            #     fileNamePrefix=image_name,
-            #     region=gridCell,
-            #     scale=preprocessing.resolutions[args.data],
-            #     crs=args.crs,
-            #     maxPixels=1e10,
-            #     formatOptions={
-            #         'cloudOptimized': True,
-            #     }
-            # )
-            # task.start()
-            
-            # Create an image manifest for adding image as an asset
-            image_manifests[f"{i}"] = {
-                'name': asset_name,
-                'properties': {
-                    'source':args.data,
-                    'max':args.max,
-                    'min':args.min,
-                    'project':'NorthAmerica',
-                    'method':'SWIR Summary'
-                },
-                'tilesets': [
-                    {'id': '0', 'sources': [ {'uris': [f'gs://{args.bucket}/{image_name}.tif']}]}
-                ],
-                'startTime': f'{args.start}-01-01T00:00:00.000000000Z',
-                'endTime': f'{args.end+1}-01-01T00:00:00.000000000Z'
-            }
-        else:
-            imageName = assetID
-            description = description_base
-            if gridSize > 1:
-                imageName = f'{assetID}_tile_{i}'
-                description = f'{description}_tile_{i}'
-
-            task = ee.batch.Export.image.toAsset(
-                image=swir_summary,
-                description=description,
-                assetId=imageName,
-                region=gridCell, 
-                scale=preprocessing.resolutions[args.data],
-                crs=args.crs,
-                pyramidingPolicy={'.default': 'mean'},
-                maxPixels=1e10
-            )
-            task.start()
+        submission.submit_job(
+            image=swir_summary,
+            assetID=assetID,
+            file_name_prefix=file_name_prefix,
+            description_base=description_base,
+            scale=preprocessing.resolutions[args.data],
+            crs=args.crs,
+            region=gridCell,
+            cloudstorage=args.cloudstorage,
+            bucket=args.bucket,
+            i=i
+        )
+    if args.create_manifests:
+        image_manifests[i] = submission.create_manifest(
+            assetID=assetID,
+            file_name_prefix=file_name_prefix,
+            description_base=description_base,
+            properties={
+                'source':args.data,
+                'max':args.max,
+                'min':args.min,
+                'project':'NorthAmerica',
+                'method':'SWIR Summary'
+            },
+            bucket=args.bucket,
+            i=i
+        )
 if args.cloudstorage:
     with open("image_manifests.json", 'w')  as f:
         json.dump(image_manifests, f)
