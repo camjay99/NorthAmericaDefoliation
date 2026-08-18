@@ -1,4 +1,4 @@
-from time import time
+import time
 
 import ee
 
@@ -68,7 +68,7 @@ def create_manifest(
 
     if model_start is not None:
         start = model_start
-        end = model_end
+        end = model_end + 1
     elif year is not None:
         start = year
         end = year + 1

@@ -13,7 +13,7 @@ import submission
 ##############################################################
 
 parser = argparse.ArgumentParser(
-    description='Options for calculating maximum early-season EVI')
+    description='Options for calculating maximum early-season EVI across all years')
 
 # The script will ONLY submit the run when -s or --submit is included.
 parser.add_argument('--submit', '-s', action='store_true')
@@ -33,12 +33,7 @@ parser.add_argument('--bucket', '-b', action='store', default=None)
 parser.add_argument('--project', '-p', action='store',
                     default=None, required=True)
 
-# The first and last years to calculate the maximum early-season EVI for.
-parser.add_argument('--start', '-S', action='store', type=int, default=2019)
-parser.add_argument('--end', '-E', action='store', type=int, default=2023)
-
-# The first and last years of the average phenology model used to
-# identify the start of the growing season (SoS).
+# The first and last years over which to compute the maximum early-season EVI.
 parser.add_argument('--model_start', '-n', action='store', type=int, default=2019)
 parser.add_argument('--model_end', '-N', action='store', type=int, default=2023)
 
@@ -108,10 +103,10 @@ else:
 
 if args.cloudstorage:
     assert (args.bucket is not None), "Must specify bucket if exporting to cloud storage."
-    file_name_prefix = f'max_early_season_evi_{name}/max_early_season_evi_v1_{args.data}'
+    file_name_prefix = f'max_early_season_evi_{name}/max_early_season_evi_all_years_v1_{args.data}'
     image_manifests = {}
-assetID = f'projects/{args.project}/assets/max_early_season_evi_{name}/max_early_season_evi_v1_{args.data}'
-description_base = f'{name}_MaxEarlySeasonEVI_{args.data}'
+assetID = f'projects/{args.project}/assets/max_early_season_evi_{name}/max_early_season_evi_all_years_v1_{args.data}'
+description_base = f'{name}_MaxEarlySeasonEVI_AllYears_{args.data}'
 
 pheno_coll = ee.ImageCollection(f'projects/{args.project}/assets/average_phenology_{name}')
 pheno_coll = (pheno_coll.filter(ee.Filter.eq('source', args.data))
@@ -151,72 +146,69 @@ for i in range(gridSize):
         phenology.select('SoS').add(args.window).rename('EoS')
     ])
 
-    years = list(range(args.start, args.end + 1))
+    # Pull imagery across the full range of years at once so the maximum
+    # early-season EVI is computed over all years rather than per year.
+    start_date = ee.Date.fromYMD(args.model_start, 1, 1)
+    end_date = ee.Date.fromYMD(args.model_end + 1, 1, 1)
 
-    for year in years:
-        start_date = ee.Date.fromYMD(year, 1, 1)
-        end_date = ee.Date.fromYMD(year + 1, 1, 1)
-
-        if args.data == 'HLS':
-            col = preprocessing.preprocess_HLS(start_date, end_date,
-                                               gridCell, 90, 200,
-                                               phenology=early_season)
-
-
-        ##########################################
-        # Calculate maximum observed early-season EVI
-        ##########################################
-
-        max_evi = col.select('EVI').max().rename('max_EVI')
-        max_evi = (max_evi.set('source', args.data)
-                        .set('model_start', args.model_start)
-                        .set('model_end', args.model_end)
-                        .set('window', args.window)
-                        .set('min', args.min)
-                        .set('max', args.max)
-                        .set('year', year)
-                        .set('project', 'NorthAmerica'))
-        max_evi = (max_evi.subtract(args.min)
-                        .divide(args.max-args.min).multiply(65_535).uint16())
+    if args.data == 'HLS':
+        col = preprocessing.preprocess_HLS(start_date, end_date,
+                                           gridCell, 90, 200,
+                                           phenology=early_season)
 
 
-        #################################
-        # Submit batch job
-        #################################
+    ##########################################
+    # Calculate maximum observed early-season EVI across all years
+    ##########################################
 
-        if args.submit:
-            submission.submit_job(
-                image=max_evi,
-                assetID=assetID,
-                file_name_prefix=file_name_prefix,
-                description_base=description_base,
-                year=year,
-                scale=preprocessing.resolutions[args.data],
-                crs=args.crs,
-                region=gridCell,
-                cloudstorage=args.cloudstorage,
-                bucket=args.bucket,
-                i=i
-            )
-        if args.create_manifests:
-            image_manifests[f"{year}_{i}"] = submission.create_manifest(
-                assetID=assetID,
-                file_name_prefix=file_name_prefix,
-                description_base=description_base,
-                year=year,
-                properties={
-                    'source': args.data,
-                    'model_start': args.model_start,
-                    'model_end': args.model_end,
-                    'window': args.window,
-                    'min': args.min,
-                    'max': args.max,
-                    'year': year,
-                    'project': 'NorthAmerica'
-                },
-                bucket=args.bucket,
-                i=i
-            )
+    max_evi = col.select('EVI').max().rename('max_EVI')
+    max_evi = (max_evi.set('source', args.data)
+                    .set('model_start', args.model_start)
+                    .set('model_end', args.model_end)
+                    .set('window', args.window)
+                    .set('min', args.min)
+                    .set('max', args.max)
+                    .set('project', 'NorthAmerica'))
+    max_evi = (max_evi.subtract(args.min)
+                    .divide(args.max-args.min).multiply(65_535).uint16())
+
+
+    #################################
+    # Submit batch job
+    #################################
+
+    if args.submit:
+        submission.submit_job(
+            image=max_evi,
+            assetID=assetID,
+            file_name_prefix=file_name_prefix,
+            description_base=description_base,
+            scale=preprocessing.resolutions[args.data],
+            crs=args.crs,
+            region=gridCell,
+            cloudstorage=args.cloudstorage,
+            bucket=args.bucket,
+            i=i
+        )
+    if args.create_manifests:
+        image_manifests[i] = submission.create_manifest(
+            assetID=assetID,
+            file_name_prefix=file_name_prefix,
+            description_base=description_base,
+            model_start=args.model_start,
+            model_end=args.model_end,
+            properties={
+                'source': args.data,
+                'model_start': args.model_start,
+                'model_end': args.model_end,
+                'window': args.window,
+                'min': args.min,
+                'max': args.max,
+                'project': 'NorthAmerica'
+            },
+            bucket=args.bucket,
+            i=i
+        )
 if args.cloudstorage:
     with open("image_manifests.json", 'w')  as f:
         json.dump(image_manifests, f)
