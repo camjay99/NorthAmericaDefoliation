@@ -13,13 +13,13 @@ import submission
 ##############################################################
 
 parser = argparse.ArgumentParser(
-    description='Options for calculating defoliation')
+    description='Options for calculating late-season defoliation')
 
 # The script will ONLY submit the run when -s or --submit is included.
 parser.add_argument('--submit', '-s', action='store_true')
 
-# The script will ONLY create image manifests when -m or --create_manifests is included.
-parser.add_argument('--create_manifests', '-m', action='store_true')
+# The script will ONLY create image manifests when -i or --create_manifests is included.
+parser.add_argument('--create_manifests', '-i', action='store_true')
 
 # Whether to export results to a cloud storage bucket. If true,
 # `bucket` must also be set.
@@ -28,9 +28,9 @@ parser.add_argument('--cloudstorage', '-C', action='store_true')
 # Cloud storage bucket to save results in.
 parser.add_argument('--bucket', '-b', action='store', default=None)
 
-# The project to submit the code in. 
+# The project to submit the code in.
 # You may be prompted to to authenticate.
-parser.add_argument('--project', '-p', action='store', 
+parser.add_argument('--project', '-p', action='store',
                     default=None, required=True)
 
 # The first and last years to look for defoliation signals in.
@@ -42,16 +42,16 @@ parser.add_argument('--model_start', '-n', action='store', type=int, default=201
 parser.add_argument('--model_end', '-N', action='store', type=int, default=2023)
 
 # The data source to use for calculating trends.
-parser.add_argument('--data', '-d', action='store', 
+parser.add_argument('--data', '-d', action='store',
                     default='HLS', choices=preprocessing.sources)
 
-# The geomtry to calculate defoliation within. 
+# The geomtry to calculate defoliation within.
 # A list of valid geometries are available in scripts/geometries.py
-parser.add_argument('--geometry', '-g', action='store', 
+parser.add_argument('--geometry', '-g', action='store',
                     default=None, choices=geometries.site_names)
 
 # State to calculate trends within.
-parser.add_argument('--state', '-x', action='store', 
+parser.add_argument('--state', '-x', action='store',
                     default=None)
 
 # Use total Spongy Moth Range to calculate trends within.
@@ -64,12 +64,17 @@ parser.add_argument('--crs', '-c', action='store', default='epsg:5070')
 parser.add_argument('--width', '-w', action='store', type=float, default=0.75)
 parser.add_argument('--length', '-l', action='store', type=float, default=0.75)
 
-# Rescale within each year to minimize interannual variability
-parser.add_argument('--rescale', '-r', action='store_true')
-
 # The min/max of defoliation for data compression
 parser.add_argument('--min', '-m', action='store', type=float, default=-1)
 parser.add_argument('--max', '-M', action='store', type=float, default=1)
+
+# Day of year after which to start looking for late-season declines. 
+parser.add_argument('--start_doy', '-D', action='store', type=int, default=210)
+
+# Hard upper bound on the day of year used to filter the input collection,
+# wide enough to include any real end of season (EoS). The phenology
+# model's per-pixel EoS still clips the true window.
+parser.add_argument('--end_doy', '-e', action='store', type=int, default=365)
 
 # Parse arguments provided to script
 args = parser.parse_args()
@@ -101,28 +106,22 @@ if args.geometry:
 elif args.state:
     name = args.state.replace(" ", "_")
     geometry = geometries.get_state(args.state)
-else: 
+else:
     name = "North_America"
     geometry = geometries.get_range()
 
 if args.cloudstorage:
     assert (args.bucket is not None), "Must specify bucket if exporting to cloud storage."
-    file_name_prefix = f'defoliation_score_{name}/defoliation_score_v3_{args.data}'
+    file_name_prefix = f'late_season_defoliation_score_{name}/late_season_defoliation_score_v1_{args.data}'
     image_manifests = {}
-    if args.rescale:
-        file_name_prefix += '_rescaled'
-assetID = f'projects/{args.project}/assets/defoliation_score_{name}/defoliation_score_v3_{args.data}'
-description_base = f'{name}_Defoliation_{args.data}'
-if args.rescale:
-    assetID += '_rescaled'
-    description_base += '_rescaled'
+assetID = f'projects/{args.project}/assets/late_season_defoliation_score_{name}/late_season_defoliation_score_v1_{args.data}'
+description_base = f'{name}_LateSeasonDefoliation_{args.data}'
 
 pheno_coll = ee.ImageCollection(f'projects/{args.project}/assets/average_phenology_{name}')
 pheno_coll = (pheno_coll.filter(ee.Filter.eq('source', args.data))
                         .filter(ee.Filter.eq('start', args.model_start))
                         .filter(ee.Filter.eq('end', args.model_end)))
 model_coll = (ee.ImageCollection(f'projects/{args.project}/assets/seasonal_trend_{name}')
-              .filter(ee.Filter.eq('rescaled', str(args.rescale)))
               .filter(ee.Filter.eq('start', args.model_start))
               .filter(ee.Filter.eq('end', args.model_end))
               .filter(ee.Filter.eq('method', 'Theil-Sen'))
@@ -155,12 +154,12 @@ for i in range(gridSize):
     # Prepare Data
     ##################################################################
 
-    # Use maximum composite as there are some oddities in overlapping 
+    # Use maximum composite as there are some oddities in overlapping
     # gridCells with some corners missing data.
-    phenology = pheno_coll.filterBounds(gridCell).max() 
+    phenology = pheno_coll.filterBounds(gridCell).max()
     models = model_coll.filterBounds(gridCell)
     swir_summary = swir_coll.filterBounds(gridCell)
-    
+
     # Decompress models
     def decompress_model(image):
         image = image.updateMask(image) # Mask 0s, as sometimes the data is available in overlapping tiles
@@ -189,7 +188,7 @@ for i in range(gridSize):
                       .add(min_swir))
         return image
     swir_summary = swir_summary.map(decompress_swir).mosaic().unmask()
-    
+
     # Compute defoliation score
     years = list(range(args.start, args.end + 1))
 
@@ -198,12 +197,15 @@ for i in range(gridSize):
         end_date = ee.Date.fromYMD(year + 1, 1, 1)
 
         if args.data == 'HLS':
+            # phenology carries this pixel's real SoS/EoS bands, so the
+            # per-pixel mask in preprocess_HLS clips the window to
+            # [start_doy, EoS] even though end_doy is a wide fixed bound.
             col = preprocessing.preprocess_HLS(start_date, end_date,
-                                               gridCell, 
-                                               160, 210,
+                                               gridCell,
+                                               args.start_doy, args.end_doy,
                                                phenology)
 
-        
+
         ######################################
         # Estimate defoliation in given window
         ######################################
@@ -218,7 +220,7 @@ for i in range(gridSize):
             swir2_mask = swir2.lte(swir_summary.select('mean_SWIR2')
                             .subtract(swir_summary.select('stddev_SWIR2').multiply(3)))
             return image.updateMask(swir1_mask.And(swir2_mask).Not())
-        
+
 
         col = col.map(mask_swir_outliers)
 
@@ -232,7 +234,7 @@ for i in range(gridSize):
 
             return image.addBands(anom.rename('EVI_anom'))
 
-        def calc_statistics(images): 
+        def calc_statistics(images):
             images = images.map(calc_anom)
             mean_intensity = images.select("EVI_anom").mean().rename("mean_intensity")
 
@@ -240,14 +242,15 @@ for i in range(gridSize):
 
         defol = calc_statistics(col)
         defol = (defol.set('source', args.data)
-                      .set('rescaled', args.rescale)
                       .set('start', args.model_start)
                       .set('end', args.model_end)
                       .set('min', args.min)
                       .set('max', args.max)
                       .set('year', year)
+                      .set('start_doy', args.start_doy)
+                      .set('end_doy', args.end_doy)
                       .set('project', 'NorthAmerica')
-                      .set('method', 'Theil-Sen SWIR1'))
+                      .set('method', 'Theil-Sen'))
         defol = (defol.subtract(args.min)
                     .divide(args.max-args.min).multiply(65_535).uint16())
 
@@ -282,10 +285,11 @@ for i in range(gridSize):
                     'end':args.model_end,
                     'max':args.max,
                     'min':args.min,
-                    'rescaled':str(args.rescale),
                     'year':year,
+                    'start_doy':args.start_doy,
+                    'end_doy':args.end_doy,
                     'project':'NorthAmerica',
-                    'method':'Theil-Sen SWIR1'
+                    'method':'Theil-Sen'
                 },
                 bucket=args.bucket,
                 i=i
