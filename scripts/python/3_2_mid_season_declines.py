@@ -19,7 +19,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument('--submit', '-s', action='store_true')
 
 # The script will ONLY create image manifests when -m or --create_manifests is included.
-parser.add_argument('--create_manifests', '-m', action='store_true')
+parser.add_argument('--create_manifests', '-i', action='store_true')
 
 # Whether to export results to a cloud storage bucket. If true,
 # `bucket` must also be set.
@@ -65,10 +65,10 @@ parser.add_argument('--width', '-w', action='store', type=float, default=0.75)
 parser.add_argument('--length', '-l', action='store', type=float, default=0.75)
 
 # Day of year after which to start looking for mid-season declines. 
-parser.add_argument('--start_doy', '-D', action='store', type=int, default=210)
+parser.add_argument('--start_doy', '-D', action='store', type=int, default=160)
 
 # Day of year after which to stop looking for mid-season declines.
-parser.add_argument('--end_doy', '-E', action='store', type=int, default=365)
+parser.add_argument('--end_doy', '-F', action='store', type=int, default=210)
 
 # The min/max of defoliation for data compression
 parser.add_argument('--min', '-m', action='store', type=float, default=-1)

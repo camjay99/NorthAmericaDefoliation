@@ -128,8 +128,6 @@ model_coll = (ee.ImageCollection(f'projects/{args.project}/assets/seasonal_trend
               .filter(ee.Filter.eq('source', args.data))
               .filter(ee.Filter.eq('project', 'NorthAmerica')))
 swir_coll = (ee.ImageCollection(f'projects/{args.project}/assets/swir_summary_{name}')
-             #.filter(ee.Filter.eq('start', args.model_start))
-             #.filter(ee.Filter.eq('end', args.model_end))
              .filter(ee.Filter.eq('source', args.data))
              .filter(ee.Filter.eq('project', 'NorthAmerica')))
 
@@ -197,7 +195,7 @@ for i in range(gridSize):
         end_date = ee.Date.fromYMD(year + 1, 1, 1)
 
         if args.data == 'HLS':
-            # phenology carries this pixel's real SoS/EoS bands, so the
+            # Phenology carries this pixel's real SoS/EoS bands, so the
             # per-pixel mask in preprocess_HLS clips the window to
             # [start_doy, EoS] even though end_doy is a wide fixed bound.
             col = preprocessing.preprocess_HLS(start_date, end_date,

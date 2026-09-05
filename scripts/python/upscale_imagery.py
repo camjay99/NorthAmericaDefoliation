@@ -5,6 +5,7 @@ import ee
 
 import geometries
 import preprocessing
+import submission
 
 
 ##############################################################
@@ -17,10 +18,26 @@ parser = argparse.ArgumentParser(
 # The script will ONLY submit the run when -s or --submit is included.
 parser.add_argument('--submit', '-s', action='store_true')
 
+# Whether to export results to a cloud storage bucket. If true,
+# `bucket` must also be set.
+parser.add_argument('--cloudstorage', '-C', action='store_true')
+
+# Cloud storage bucket to save results in.
+parser.add_argument('--bucket', '-b', action='store', default=None)
+
 # The project to submit the code in. 
 # You may be prompted to to authenticate.
 parser.add_argument('--project', '-p', action='store', 
                     default=None, required=True)
+
+# The crs to use for the output
+parser.add_argument('--crs', '-c', action='store', default='epsg:5070')
+
+# The scale to use for the output
+parser.add_argument('--scale', '-S', action='store', type=float, default=3000)
+
+# Year to upscale imagery for.
+parser.add_argument('--year', '-y', action='store', type=int, default=2021)
 
 # The width/length of grid cells to use for computation (in lat/lon degrees)
 parser.add_argument('--width', '-w', action='store', type=float, default=2)
@@ -41,13 +58,25 @@ except:
     ee.Authenticate()
     ee.Initialize(project=args.project)
 
+##################################################################
+# Specify base names and load previous results
+##################################################################
+
+if args.cloudstorage:
+    assert (args.bucket is not None), "Must specify bucket if exporting to cloud storage."
+    file_name_prefix = f'upscaled_imagery/upscaled_'
+    image_manifests = {}
+description_base = f'Upscaled'
+assetID=f'projects/{args.project}/assets/upscaled_imagery/upscaled'
+
 
 ##################################################################
 # Prepare imagery
 ##################################################################
 
 defol_col = (ee.ImageCollection(f'projects/{args.project}/assets/defoliation_score_North_America')
-             .filter(ee.Filter.eq('year', 2021)));
+             .filter(ee.Filter.eq('year', args.year))
+             .filter(ee.Filter.eq('method', 'Theil-Sen SWIR1')));
 nlcd_landcover = ee.ImageCollection('USGS/NLCD_RELEASES/2019_REL/NLCD') \
     .filter(ee.Filter.eq('system:index', '2019')).first().select('landcover')
 esri_lulc_ts= (ee.ImageCollection("projects/sat-io/open-datasets/landcover/ESRI_Global-LULC_10m_TS")
@@ -60,8 +89,8 @@ for_mask_us = nlcd_valid.And(nlcd_landcover.gte(41).And(nlcd_landcover.lte(43)).
 for_mask_ca = nlcd_valid.Not().And(esri_lulc_ts.eq(2))
 forest_mask = for_mask_us.Or(for_mask_ca)
 
-forest_change = ee.Image("UMD/hansen/global_forest_change_2024_v1_12")
-forest_change_mask = forest_change.select('lossyear').lte(2021).unmask().Not()
+forest_change = ee.Image("UMD/hansen/global_forest_change_2025_v1_13")
+forest_change_mask = forest_change.select('lossyear').lte(args.year).unmask().Not()
 
 
 ##################################################################
@@ -98,14 +127,20 @@ for i in range(gridSize):
         False, 
         15000)
 
+    ##################################################
+    # Export results
+    ##################################################
     if args.submit:
-        task = ee.batch.Export.image.toDrive(
+        submission.submit_job(
             image=defol_tile,
-            description=f'upscaled_{i}',
-            folder='Upscaled_2021',
-            region=gridCell, 
-            scale=3000,
-            crs='EPSG:5070',
-            maxPixels=1e10
+            assetID=assetID,
+            file_name_prefix=file_name_prefix,
+            description_base=description_base,
+            year=args.year,
+            scale=args.scale,
+            crs=args.crs,
+            region=gridCell,
+            cloudstorage=args.cloudstorage,
+            bucket=args.bucket,
+            i=i
         )
-        task.start()

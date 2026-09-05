@@ -103,9 +103,9 @@ else:
 
 if args.cloudstorage:
     assert (args.bucket is not None), "Must specify bucket if exporting to cloud storage."
-    file_name_prefix = f'max_early_season_evi_{name}/max_early_season_evi_all_years_v1_{args.data}'
+    file_name_prefix = f'all_years_max_early_season_evi_{name}/max_early_season_evi_all_years_v1_{args.data}'
     image_manifests = {}
-assetID = f'projects/{args.project}/assets/max_early_season_evi_{name}/max_early_season_evi_all_years_v1_{args.data}'
+assetID = f'projects/{args.project}/assets/all_years_max_early_season_evi_{name}/max_early_season_evi_all_years_v1_{args.data}'
 description_base = f'{name}_MaxEarlySeasonEVI_AllYears_{args.data}'
 
 pheno_coll = ee.ImageCollection(f'projects/{args.project}/assets/average_phenology_{name}')
@@ -163,8 +163,8 @@ for i in range(gridSize):
 
     max_evi = col.select('EVI').max().rename('max_EVI')
     max_evi = (max_evi.set('source', args.data)
-                    .set('model_start', args.model_start)
-                    .set('model_end', args.model_end)
+                    .set('start', args.model_start)
+                    .set('end', args.model_end)
                     .set('window', args.window)
                     .set('min', args.min)
                     .set('max', args.max)
@@ -199,7 +199,7 @@ for i in range(gridSize):
             model_end=args.model_end,
             properties={
                 'source': args.data,
-                'model_start': args.model_start,
+                'start': args.model_start,
                 'model_end': args.model_end,
                 'window': args.window,
                 'min': args.min,
