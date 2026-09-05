@@ -3,9 +3,9 @@ import json
 
 import ee
 
-import geometries
-import preprocessing
-import submission
+import utils.geometries as geometries
+import utils.preprocessing as preprocessing
+import utils.submission as submission
 
 
 ##############################################################
