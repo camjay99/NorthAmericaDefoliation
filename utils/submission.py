@@ -7,10 +7,11 @@ def submit_job(
         assetID,
         file_name_prefix,
         description_base,
-        scale,
         crs,
         region,
         cloudstorage,
+        scale=None,
+        crsTransform=None,
         bucket=None,
         year=None,
         i=None
@@ -18,6 +19,8 @@ def submit_job(
     asset_name, image_name, description = _create_name_description(
         assetID, file_name_prefix, description_base, year, i
     )
+
+    assert (scale is not None) != (crsTransform is not None), "Must specify only one of scale or crsTransform."
 
     if cloudstorage:
         # Save in a Cloud Storage Bucket
@@ -28,6 +31,7 @@ def submit_job(
             fileNamePrefix=image_name,
             region=region,
             scale=scale,
+            crsTransform=crsTransform,
             crs=crs,
             maxPixels=1e10,
             formatOptions={
@@ -42,6 +46,7 @@ def submit_job(
             assetId=asset_name,
             region=region,
             scale=scale,
+            crsTransform=crsTransform,
             crs=crs,
             pyramidingPolicy={'.default': 'mean'},
             maxPixels=1e10

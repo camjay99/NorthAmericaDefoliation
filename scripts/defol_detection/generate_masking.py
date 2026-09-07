@@ -3,8 +3,8 @@ import json
 
 import ee
 
-import geometries
-import preprocessing
+import scripts.util._geometries as _geometries
+import scripts.util._preprocessing as _preprocessing
 
 ##############################################################
 # Parse arguments
@@ -37,10 +37,10 @@ parser.add_argument('--model_end', '-N', action='store', type=int, default=2023)
 
 # The data source to use for calculating trends.
 parser.add_argument('--data', '-d', action='store', 
-                    default='HLS', choices=preprocessing.sources)
+                    default='HLS', choices=_preprocessing.sources)
 
 # The geomtry to calculate defoliation within. A list of valid geometries are available in scripts/geometries.py
-parser.add_argument('--geometry', '-g', action='store', default='Mt_Pleasant', choices=geometries.site_names)
+parser.add_argument('--geometry', '-g', action='store', default='Mt_Pleasant', choices=_geometries.site_names)
 
 # State to calculate defoliation over. If specified, geometry is ignored
 parser.add_argument('--state', '-t', action='store', default=None)
@@ -80,13 +80,13 @@ assert num_not_specified > 1, "Only one of geometry, state, and range can be spe
 
 if args.geometry:
     name = args.geometry
-    geometry = geometries.get_geometry(args.geometry)
+    geometry = _geometries.get_geometry(args.geometry)
 elif args.state:
     name = args.state.replace(" ", "_")
-    geometry = geometries.get_state(args.state)
+    geometry = _geometries.get_state(args.state)
 else: 
     name = "North_America"
-    geometry = geometries.get_range()
+    geometry = _geometries.get_range()
 
 if args.cloudstorage:
     assert (args.bucket is not None), "Must specify bucket if exporting to cloud storage."
@@ -123,9 +123,9 @@ for i in range(gridSize):
         end_date = ee.Date.fromYMD(args.model_end, 1, 1)
         # Collect observations
         if args.data == 'HLS':
-            year_col = preprocessing.preprocess_HLS(year_start_date, year_end_date,
+            year_col = _preprocessing.preprocess_HLS(year_start_date, year_end_date,
                                                     gridCell, None, False)
-            all_col = preprocessing.preprocess_HLS(start_date, end_date,
+            all_col = _preprocessing.preprocess_HLS(start_date, end_date,
                                                 gridCell, None, False)
             
         # Create yearly observation mask
@@ -208,7 +208,7 @@ for i in range(gridSize):
                     bucket=args.bucket,
                     fileNamePrefix=image_name,
                     region=gridCell,
-                    scale=preprocessing.resolutions[args.data],
+                    scale=_preprocessing.resolutions[args.data],
                     crs=args.crs,
                     maxPixels=1e10,
                     formatOptions={
@@ -246,7 +246,7 @@ for i in range(gridSize):
                     description=description,
                     assetId=image_name,
                     region=gridCell, 
-                    scale=preprocessing.resolutions[args.data],
+                    scale=_preprocessing.resolutions[args.data],
                     crs=args.crs,
                     pyramidingPolicy={'.default': 'sample'},
                     maxPixels=1e10

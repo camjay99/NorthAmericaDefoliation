@@ -11,8 +11,8 @@ import time
 import ee
 from google.auth.transport.requests import AuthorizedSession
 
-import geometries
-import preprocessing
+import scripts.util._geometries as _geometries
+import scripts.util._preprocessing as _preprocessing
 
 
 ##############################################################

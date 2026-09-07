@@ -3,7 +3,7 @@ CJShp##############################################################
 ##############################################################
 
 import argparse
-import geometries
+import scripts.util._geometries as _geometries
 
 parser = argparse.ArgumentParser(
     description='Options for calculating seasonal trends')
@@ -55,7 +55,7 @@ except:
 description = f'Generate_{args.state.replace(" ", "_")}_Maps_{args.scale}m'
 fileName = f'{args.state.replace(" ", "_")}_mean_defoliated_area_{args.scale}m'
 
-geometry = geometries.get_state(args.state)
+geometry = _geometries.get_state(args.state)
 denoised_coll = ee.ImageCollection(f'projects/{args.project}/assets/score_denoised_{args.state.replace(" ", "_")}')
 qa_coll = ee.ImageCollection(f'projects/{args.project}/assets/qa_masks_{args.state.replace(" ", "_")}')
     

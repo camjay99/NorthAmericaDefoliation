@@ -3,7 +3,7 @@
 ##############################################################
 
 import argparse
-import geometries
+import scripts.util._geometries as _geometries
 import time
 
 parser = argparse.ArgumentParser(
@@ -19,7 +19,7 @@ parser.add_argument('--project', '-p', action='store', default=None, required=Tr
 parser.add_argument('--year', '-S', action='store', type=int, default=2019)
 
 # The geomtry to calculate defoliation within. A list of valid geometries are available in scripts/geometries.py
-parser.add_argument('--geometry', '-g', action='store', default='Mt_Pleasant', choices=geometries.site_names)
+parser.add_argument('--geometry', '-g', action='store', default='Mt_Pleasant', choices=_geometries.site_names)
 
 # State to calculate defoliation over. If specified, geometry is ignored
 parser.add_argument('--state', '-t', action='store', default=None)
@@ -76,11 +76,11 @@ def preprocess(image):
 if args.state == None:
     description = f'qa_mask_{args.geometry}'
     assetID = f'projects/{args.project}/assets/qa_mask_{args.geometry}/qa_mask_{args.year}'
-    geometry = geometries.get_geometry(args.geometry)
+    geometry = _geometries.get_geometry(args.geometry)
 else:
     description = f'qa_mask_{args.state.replace(" ", "_")}'
     assetID=f'projects/{args.project}/assets/qa_mask_{args.state.replace(" ", "_")}/qa_mask_{args.year}'
-    geometry = geometries.get_state(args.state)
+    geometry = _geometries.get_state(args.state)
 
 #Specify grid size in projection, x and y units (based on projection).
 projection = 'EPSG:4326'; # WGS84 lat lon

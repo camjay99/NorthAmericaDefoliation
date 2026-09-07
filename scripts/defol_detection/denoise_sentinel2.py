@@ -3,7 +3,7 @@
 ##############################################################
 
 import argparse
-import geometries
+import scripts.util._geometries as _geometries
 import time
 
 parser = argparse.ArgumentParser(
@@ -19,7 +19,7 @@ parser.add_argument('--project', '-p', action='store', default=None, required=Tr
 parser.add_argument('--year', '-S', action='store', type=int, default=2019)
 
 # The geomtry to calculate defoliation within. A list of valid geometries are available in scripts/geometries.py
-parser.add_argument('--geometry', '-g', action='store', default='Mt_Pleasant', choices=geometries.site_names)
+parser.add_argument('--geometry', '-g', action='store', default='Mt_Pleasant', choices=_geometries.site_names)
 
 # State to calculate defoliation over.
 parser.add_argument('--state', '-t', action='store', default=None)
@@ -49,7 +49,7 @@ except:
 
 if args.state == None:
     description = f'Sentinel2_unscaled_{args.geometry}_Denoised'
-    geometry = geometries.get_geometry(args.geometry)
+    geometry = _geometries.get_geometry(args.geometry)
     defol_coll = (ee.ImageCollection(f'projects/{args.project}/assets/defoliation_score_New_York')
                   .filter(ee.Filter.eq('year', args.year))
                   .filterBounds(geometry))
@@ -58,7 +58,7 @@ else:
     description = f'Sentinel2_unscaled_{args.state.replace(" ", "_")}_Denoised'
     assetID = f'projects/{args.project}/assets/score_denoised_{args.state.replace(" ", "_")}/score_denoised_{args.year}'
     defol_coll = ee.ImageCollection(f'projects/{args.project}/assets/defoliation_score_{args.state.replace(" ", "_")}').filter(ee.Filter.eq('year', args.year))
-    geometry = geometries.get_state(args.state)
+    geometry = _geometries.get_state(args.state)
 
 # Assemble mask
 if args.year in range(2019, 2024):

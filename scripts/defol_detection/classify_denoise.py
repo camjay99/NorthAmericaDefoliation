@@ -3,9 +3,9 @@ import json
 
 import ee
 
-import geometries
+import scripts.util._geometries as _geometries
 import masking
-import preprocessing
+import scripts.util._preprocessing as _preprocessing
 
 
 ##############################################################
@@ -36,12 +36,12 @@ parser.add_argument('--end', '-E', action='store', default=2023)
 
 # The data source to use for calculating trends.
 parser.add_argument('--data', '-d', action='store', 
-                    default='Sentinel2', choices=preprocessing.sources)
+                    default='Sentinel2', choices=_preprocessing.sources)
 
 # The geomtry to calculate defoliation within. 
 # A list of valid geometries are available in scripts/geometries.py
 parser.add_argument('--geometry', '-g', action='store', 
-                    default='Mt_Pleasant', choices=geometries.site_names)
+                    default='Mt_Pleasant', choices=_geometries.site_names)
 
 # State to calculate trends within.
 parser.add_argument('--state', '-x', action='store', 
@@ -88,10 +88,10 @@ except:
 
 if args.state == None:
     name = args.geometry
-    geometry = geometry = geometries.get_geometry(args.geometry)
+    geometry = geometry = _geometries.get_geometry(args.geometry)
 else:
     name = args.state.replace(" ", "_")
-    geometry = geometries.get_state(args.state)
+    geometry = _geometries.get_state(args.state)
 
 if args.cloudstorage:
     assert (args.bucket is not None), "Must specify bucket if exporting to cloud storage."
@@ -193,7 +193,7 @@ for i in range(gridSize):
                     bucket=args.bucket,
                     fileNamePrefix=image_name,
                     region=gridCell,
-                    scale=preprocessing.resolutions[args.data],
+                    scale=_preprocessing.resolutions[args.data],
                     crs=args.crs,
                     maxPixels=1e10,
                     formatOptions={
@@ -233,7 +233,7 @@ for i in range(gridSize):
                     description=description,
                     assetId=imageName,
                     region=gridCell, 
-                    scale=preprocessing.resolutions[args.data],
+                    scale=_preprocessing.resolutions[args.data],
                     crs=args.crs,
                     pyramidingPolicy={'.default': 'mean'},
                     maxPixels=1e10
