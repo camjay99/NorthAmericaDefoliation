@@ -115,10 +115,10 @@ for i in range(gridSize):
             assetID='',
             file_name_prefix=file_name_prefix,
             description_base=description_base,
-            scale=preprocessing.resolutions[args.data],
+            scale=30,
             crs=args.crs,
             region=gridCell,
-            cloudstorage=args.cloudstorage,
+            cloudstorage=True,
             bucket=args.bucket,
             i=i
         )
