@@ -83,22 +83,26 @@ for i in range(gridSize):
     ##################################################################
 
     # Topography
-    elevation = ee.Image('USGS/SRTMGL1_003')
-    slope = ee.Terrain.slope(elevation).rename('slope')
-    aspect = ee.Terrain.aspect(elevation).rename('aspect')
+    elevation = ee.Image('USGS/SRTMGL1_003').toUint16()
+    slope = (ee.Terrain.slope(elevation).rename('slope')
+                .multiply(65535./90)
+                .toUint16())
+    aspect = (ee.Terrain.aspect(elevation).rename('aspect')
+                .multiply(65535./360)
+                .toUint16())
 
     # Landcover
-    landcover = ee.Image("USGS/NLCD_RELEASES/2020_REL/NALCMS")
+    landcover = ee.Image("USGS/NLCD_RELEASES/2020_REL/NALCMS").toUint16()
     forest = landcover.gte(41).And(landcover.lte(43)).rename('forest')
     ## Distance to forest edge
     kernel = ee.Kernel.euclidean(radius=4000, units='meters', normalize=False)
     distance_to_forest = (forest.Not()
                           .distance(kernel)
-                          .rename('distance_to_edge'))
+                          .rename('distance_to_edge')
+                          .multiply(65535./4000)
+                          .toUint16())
 
     output = ee.Image([elevation, slope, aspect, landcover, distance_to_forest])
-
-    ## TODO: Compress output data to more reasonable size.
 
 
     ##################################################

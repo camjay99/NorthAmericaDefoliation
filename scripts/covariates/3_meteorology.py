@@ -100,8 +100,8 @@ for year in range(args.start, args.end + 1):
                 file_name_prefix=f'{file_name_prefix}_{year}_{month}',
                 description_base=f'{description_base}_{year}_{month}',
                 crsTransform=proj['transform'],
-                crs=proj['crs'],
+                crs=proj['wkt'],
                 region=geometry,
-                cloudstorage=args.cloudstorage,
+                cloudstorage=True,
                 bucket=args.bucket,
             )
