@@ -5,7 +5,19 @@ resolutions = {'HLS':30}
 
 
 def preprocess_HLS(start_date, end_date, geometry, 
-                   start_doy=0, end_doy=365, phenology=None, adddoy=True):
+                   start_doy=0, end_doy=365, phenology=None, 
+                   adddoy=True, 
+                   aerosol_mask=None,
+                   water_mask=True,
+                   snow_mask=False,
+                   shadow_mask=True,
+                   adjacent_mask=True,
+                   cloud_mask=True)
+                   fmask=(["00"], ["101110"])):
+    # fmask is a tuple with the first element representing the aerosol mask, 
+    # and the second the rest of the masks. Passing a list will create several masks.
+    fmasks = ee.List([ee.List([i,j]) for i in fmask[0] for j in fmask[1]]
+    
     # Load HLS S30/L30
     collection_L30 = (ee.ImageCollection("NASA/HLS/HLSL30/v002")
                         .filterDate(start_date, end_date)
@@ -78,8 +90,13 @@ def preprocess_HLS(start_date, end_date, geometry,
         # Bit 6-7 Aerosol level
         # We mask clouds, shadows, adjecent areas, water and moderate/high aerosol.
         # Note that small clouds/shadows are often incorrectly classified as aerosols.
-        fmask_val = ee.Number.parse("00101110", 2)
-        mask = image.select("Fmask").bitwiseAnd(fmask_val).eq(0) 
+        mask = _create_fmask(image.select('Fmask'),
+                             aerosol_mask=aerosol_mask,
+                             water_mask=water_mask,
+                             snow_mask=snow_mask,
+                             shadow_mask=shadow_mask,
+                             adjacent_mask=adjacent_mask,
+                             cloud_mask=cloud_mask)
         ## Cloud Score+ for HLS S30 images
         # Fmask fails to detect cloud shadows and haze quite frequently for 
         # Sentinel-2 images, thus we also rely on a dedicated usability score 
@@ -110,3 +127,35 @@ def preprocess_HLS(start_date, end_date, geometry,
         lambda image: preprocess(rename_bands_S30(image), True))
 
     return collection_L30.merge(collection_S30)
+
+def _create_fmask(fmask,
+                aerosol_mask=None,
+                water_mask=True,
+                snow_mask=False,
+                shadow_mask=True,
+                adjacent_mask=True,
+                cloud_mask=True):
+    # Extract aerosol bits than calculate mask based on desired sensitivity.
+    aerosols = fmask.bitwiseAnd(192)
+    if aerosol_mask == 1:
+        aerosols = (aerosols.eq(192)
+                      .Or(aerosols.eq(128))
+                      .Or(aerosols.eq(64))).Not()
+    elif aerosol_mask == 2:
+        aerosols = (aerosols.eq(192)
+                      .Or(aerosols.eq(128))).Not()
+    elif aerosol_mask == 3:
+        aerosols = aerosols.eq(192).Not()
+    else:
+        aerosols = ee.Image(1)
+
+    string_mask = "00"
+    for i, mask in enumerate([water_mask, snow_mask, shadow_mask, adjacent_mask, cloud_mask]):
+        if mask:
+            string_mask += "1"
+        else:
+            string_mask += "0"
+    mask_val = ee.Number.parse(string_mask, 2)
+    mask = fmask.bitwiseAnd(mask_val).eq(0)
+    mask = mask.And(aerosols)
+    return mask
