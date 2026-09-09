@@ -13,10 +13,9 @@ def preprocess_HLS(start_date, end_date, geometry,
                    shadow_mask=True,
                    adjacent_mask=True,
                    cloud_mask=True)
-                   fmask=(["00"], ["101110"])):
+                   fmask=(["00"], ["101110"]):
     # fmask is a tuple with the first element representing the aerosol mask, 
     # and the second the rest of the masks. Passing a list will create several masks.
-    fmasks = ee.List([ee.List([i,j]) for i in fmask[0] for j in fmask[1]]
     
     # Load HLS S30/L30
     collection_L30 = (ee.ImageCollection("NASA/HLS/HLSL30/v002")
