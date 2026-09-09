@@ -2,6 +2,7 @@ import argparse
 import json
 
 import ee
+import eeauth
 
 import utils.geometries as geometries
 import utils.preprocessing as preprocessing
@@ -14,6 +15,9 @@ import utils.submission as submission
 
 parser = argparse.ArgumentParser(
     description='Options for calculating defoliation')
+
+# The user for submitting jobs.
+parser.add_argument('--user', '-u', action='store', default=None)
 
 # The script will ONLY submit the run when -s or --submit is included.
 parser.add_argument('--submit', '-s', action='store_true')
@@ -38,8 +42,8 @@ parser.add_argument('--start', '-S', action='store', type=int, default=2019)
 parser.add_argument('--end', '-E', action='store', type=int, default=2023)
 
 # The first and last years of baseline models used.
-parser.add_argument('--model_start', '-n', action='store', type=int, default=2019)
-parser.add_argument('--model_end', '-N', action='store', type=int, default=2023)
+parser.add_argument('--model_start', '-n', action='store', type=int, default=2017)
+parser.add_argument('--model_end', '-N', action='store', type=int, default=2025)
 
 # The data source to use for calculating trends.
 parser.add_argument('--data', '-d', action='store', 
@@ -83,11 +87,11 @@ args = parser.parse_args()
 ##############################################################
 
 try:
-    ee.Initialize(project=args.project)
+    eeauth.initialize(user=args.user, project=args.project)
 except:
     # need to authenticate with your credential at the first time
-    ee.Authenticate()
-    ee.Initialize(project=args.project)
+    eeauth.authenticate(user=args.user)
+    eeauth.initialize(user=args.user, project=args.project)
 
 
 ##################################################################

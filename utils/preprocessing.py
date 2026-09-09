@@ -13,9 +13,6 @@ def preprocess_HLS(start_date, end_date, geometry,
                    shadow_mask=True,
                    adjacent_mask=True,
                    cloud_mask=True):
-    # fmask is a tuple with the first element representing the aerosol mask, 
-    # and the second the rest of the masks. Passing a list will create several masks.
-    
     # Load HLS S30/L30
     collection_L30 = (ee.ImageCollection("NASA/HLS/HLSL30/v002")
                         .filterDate(start_date, end_date)
@@ -75,7 +72,7 @@ def preprocess_HLS(start_date, end_date, geometry,
         doy = image.date().getRelative('day', 'year')
         if adddoy or (phenology != None):
             doy_band = ee.Image.constant(doy).uint16().rename('doy')
-        year = image.date().get('year').subtract(2000) # Global Forest Change uses 00-24
+        year = image.date().get('year').subtract(2000) # Global Forest Change uses 00-25
         
         ### Masks
         ## Fmask cloud mask
@@ -101,8 +98,6 @@ def preprocess_HLS(start_date, end_date, geometry,
         # that captures most of these failure points.
         if s2:
             mask = mask.And(image.select('cs').gte(0.60))
-        #albedo = image.select('BLUE').add(image.select('RED')).add(image.select('GREEN')) Maybe unneeded with Cloud Score+
-        #mask = mask.And(albedo.lte(0.75)) # Albedo mask in case Fmask failed
         mask = mask.And(EVI.lte(1).And(EVI.gte(0))) # EVI mask
         mask = mask.And(
             forest_change.select('lossyear')
@@ -153,6 +148,7 @@ def _create_fmask(fmask,
             string_mask += "1"
         else:
             string_mask += "0"
+    string_mask += "0"
     mask_val = ee.Number.parse(string_mask, 2)
     mask = fmask.bitwiseAnd(mask_val).eq(0)
     mask = mask.And(aerosols)
