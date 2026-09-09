@@ -12,8 +12,7 @@ def preprocess_HLS(start_date, end_date, geometry,
                    snow_mask=False,
                    shadow_mask=True,
                    adjacent_mask=True,
-                   cloud_mask=True)
-                   fmask=(["00"], ["101110"]):
+                   cloud_mask=True):
     # fmask is a tuple with the first element representing the aerosol mask, 
     # and the second the rest of the masks. Passing a list will create several masks.
     
