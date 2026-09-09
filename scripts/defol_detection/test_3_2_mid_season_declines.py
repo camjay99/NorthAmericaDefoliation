@@ -110,7 +110,7 @@ else:
 
 if args.cloudstorage:
     assert (args.bucket is not None), "Must specify bucket if exporting to cloud storage."
-    file_name_prefix = f'defoliation_score_{name}/defoliation_score_v3_{args.data}'
+    file_name_prefix = f'defoliation_score_{name}/defoliation_score_v4_{args.data}'
     image_manifests = {}
 assetID = f'projects/{args.project}/assets/defoliation_score_{name}/defoliation_score_v3_{args.data}'
 description_base = f'{name}_Defoliation_{args.data}'
