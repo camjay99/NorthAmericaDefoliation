@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "utils"
 version = "0.1.0"
 description = "Locally accessible utility package"
-dependencies = []
+dependencies = ["rasterio", "shapely"]
 
 [tool.setuptools]
 packages = ["utils"]

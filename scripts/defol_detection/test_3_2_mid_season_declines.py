@@ -112,7 +112,7 @@ if args.cloudstorage:
     assert (args.bucket is not None), "Must specify bucket if exporting to cloud storage."
     file_name_prefix = f'defoliation_score_{name}/defoliation_score_v4_{args.data}'
     image_manifests = {}
-assetID = f'projects/{args.project}/assets/defoliation_score_{name}/defoliation_score_v3_{args.data}'
+assetID = f'projects/{args.project}/assets/defoliation_score_{name}/defoliation_score_v4_{args.data}'
 description_base = f'{name}_Defoliation_{args.data}'
 
 pheno_coll = ee.ImageCollection(f'projects/{args.project}/assets/average_phenology_{name}')
@@ -145,7 +145,7 @@ grid = geometry.coveringGrid(proj)
 gridSize = grid.size().getInfo()
 gridList = grid.toList(gridSize)
 
-for i in range(gridSize):
+for i in [37, 55]:
     gridCell = ee.Feature(gridList.get(i)).geometry()
 
     ##################################################################
