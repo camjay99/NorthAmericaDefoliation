@@ -5,8 +5,6 @@
 import rasterio
 from rasterio.vrt import WarpedVRT
 from rasterio.merge import merge
-from rasterio.windows import from_bounds
-from rasterio.windows import transform as window_transform
 from rasterio.warp import transform_geom
 from rasterio.enums import Resampling
 from shapely.geometry import box, mapping, shape
@@ -25,25 +23,30 @@ def filter_intersecting_rasters(filepaths, polygon, polygon_crs):
     return intersecting_filepaths
 
 
-def open_rasters_as_vrt(filepaths, dst_crs, resampling=Resampling.nearest):
+def open_rasters_as_vrt(filepaths, dst_crs, **kwargs):
     assert len(filepaths) > 0, "filepaths must not be empty"
 
     vrts = []
     for filepath in filepaths:
         dataset = rasterio.open(filepath)
-        vrts.append(WarpedVRT(dataset, crs=dst_crs, resampling=resampling))
+        vrts.append(WarpedVRT(dataset, crs=dst_crs, **kwargs))
 
     return vrts
 
 
-def mosaic_rasters(datasets, polygon):
+def mosaic_rasters(datasets, polygon, polygon_crs, method='first',
+                   height=None, width=None, resampling=Resampling.nearest):
     assert len(datasets) > 0, "datasets must not be empty"
+    assert (height is None) == (width is None), "height and width must be given together"
 
-    mosaic_array, mosaic_transform = merge(datasets)
+    reprojected_polygon = shape(transform_geom(polygon_crs, datasets[0].crs, mapping(polygon)))
+    bounds = reprojected_polygon.bounds
 
-    window = from_bounds(*polygon.bounds, transform=mosaic_transform).round_lengths().round_offsets()
-    row_slice, col_slice = window.toslices()
-    clipped_array = mosaic_array[:, row_slice, col_slice]
-    clipped_transform = window_transform(window, mosaic_transform)
+    res = None
+    if height is not None:
+        res = ((bounds[2] - bounds[0]) / width, (bounds[3] - bounds[1]) / height)
 
-    return clipped_array, clipped_transform
+    mosaic_array, mosaic_transform = merge(datasets, bounds=bounds, res=res,
+                                            resampling=resampling, method=method)
+
+    return mosaic_array, mosaic_transform
