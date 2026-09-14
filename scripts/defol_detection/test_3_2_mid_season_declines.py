@@ -87,11 +87,11 @@ args = parser.parse_args()
 ##############################################################
 
 try:
-    eeauth.initialize(user=args.user, project=args.project)
+    eeauth.initialize(args.user, project=args.project)
 except:
     # need to authenticate with your credential at the first time
-    eeauth.authenticate(user=args.user)
-    eeauth.initialize(user=args.user, project=args.project)
+    eeauth.authenticate(args.user)
+    eeauth.initialize(args.user, project=args.project)
 
 
 ##################################################################
@@ -149,7 +149,7 @@ grid = geometry.coveringGrid(proj)
 gridSize = grid.size().getInfo()
 gridList = grid.toList(gridSize)
 
-for i in range(gridSize):
+for i in [55,37]:
     gridCell = ee.Feature(gridList.get(i)).geometry()
 
     ##################################################################
