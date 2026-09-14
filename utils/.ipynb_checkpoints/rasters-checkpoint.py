@@ -5,6 +5,8 @@
 import rasterio
 from rasterio.vrt import WarpedVRT
 from rasterio.merge import merge
+from rasterio.windows import from_bounds
+from rasterio.windows import transform as window_transform
 from rasterio.warp import transform_geom
 from rasterio.enums import Resampling
 from shapely.geometry import box, mapping, shape
@@ -34,19 +36,16 @@ def open_rasters_as_vrt(filepaths, dst_crs, **kwargs):
     return vrts
 
 
-def mosaic_rasters(datasets, polygon, polygon_crs, method='first',
-                   height=None, width=None, resampling=Resampling.nearest):
+def mosaic_rasters(datasets, polygon,
+                   polygon_crs, method='first'):
     assert len(datasets) > 0, "datasets must not be empty"
-    assert (height is None) == (width is None), "height and width must be given together"
 
     reprojected_polygon = shape(transform_geom(polygon_crs, datasets[0].crs, mapping(polygon)))
-    bounds = reprojected_polygon.bounds
+    mosaic_array, mosaic_transform = merge(datasets, method=method)
 
-    res = None
-    if height is not None:
-        res = ((bounds[2] - bounds[0]) / width, (bounds[3] - bounds[1]) / height)
+    window = from_bounds(*reprojected_polygon.bounds, transform=mosaic_transform).round_lengths().round_offsets()
+    row_slice, col_slice = window.toslices()
+    clipped_array = mosaic_array[:, row_slice, col_slice]
+    clipped_transform = window_transform(window, mosaic_transform)
 
-    mosaic_array, mosaic_transform = merge(datasets, bounds=bounds, res=res,
-                                            resampling=resampling, method=method)
-
-    return mosaic_array, mosaic_transform
+    return clipped_array, clipped_transform
