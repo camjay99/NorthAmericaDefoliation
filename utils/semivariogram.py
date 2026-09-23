@@ -35,12 +35,12 @@ def compute_local_semivariogram(array, mask, pixel_width, focal_coords,
         empty = np.array([])
         return empty, empty, empty
 
-    bin_indices = np.floor_divide(distances, lag_width, dtype=np.int32)
+    bin_indices = np.floor_divide(distances, lag_width, dtype=np.int32, casting='unsafe')
 
     lag_distances = []
     semivariances = []
     n_pairs = []
-    for bin_index in range(max_lag//lag_width + 1):
+    for bin_index in range(max_lag//lag_width):
         in_bin = bin_indices == bin_index
         lag_distances.append(distances[in_bin].mean())
         semivariances.append(0.5 * squared_diffs[in_bin].mean())
@@ -56,6 +56,8 @@ def _matern_correlation(h, range_, smoothness):
                     * scaled ** smoothness * kv(smoothness, scaled))
     return np.where(h > 0, correlation, 1.0)
 
+def matern_model(h, nugget, sill, range_, smoothness):
+    return nugget + sill * (1 - _matern_correlation(h, range_, smoothness))
 
 def fit_matern_variogram(distances, semivariances, smoothness=1.5):
     distances = np.asarray(distances, dtype=float)
@@ -64,12 +66,10 @@ def fit_matern_variogram(distances, semivariances, smoothness=1.5):
         "distances and semivariances must have the same shape"
     assert distances.size >= 3, "at least 3 points are needed to fit a variogram model"
 
-    def model(h, nugget, sill, range_):
-        return nugget + sill * (1 - _matern_correlation(h, range_, smoothness))
-
     p0 = [0.0, semivariances.max(), distances.max() / 2]
     bounds = ([0, 0, 1e-6], [np.inf, np.inf, np.inf])
 
+    model = (lambda h, nugget, sill, range_: matern_model(h, nugget, sill, range_, smoothness))
     (nugget, sill, range_), _ = curve_fit(model, distances, semivariances,
                                           p0=p0, bounds=bounds)
 
