@@ -1,5 +1,6 @@
 import argparse
 import os
+import time
 
 from dask.diagnostics import ProgressBar
 from dask.distributed import Client, WorkerPlugin
@@ -88,11 +89,11 @@ if __name__ == '__main__':
     HIGH_VOLUME_ENDPOINT = 'https://earthengine-highvolume.googleapis.com'
 
     try:
-        ee.Initialize(project=args.project)
+        ee.Initialize(project=args.project, opt_url=HIGH_VOLUME_ENDPOINT)
     except Exception:
         # need to authenticate with your credential at the first time
         ee.Authenticate()
-        ee.Initialize(project=args.project)
+        ee.Initialize(project=args.project, opt_url=HIGH_VOLUME_ENDPOINT)
 
     client = Client()
 
@@ -102,11 +103,11 @@ if __name__ == '__main__':
             pass
         def setup(self, worker):
             try:
-                ee.Initialize(project=args.project)
+                ee.Initialize(project=args.project, opt_url=HIGH_VOLUME_ENDPOINT)
             except Exception:
                 # need to authenticate with your credential at the first time
                 ee.Authenticate()
-                ee.Initialize(project=args.project)
+                ee.Initialize(project=args.project, opt_url=HIGH_VOLUME_ENDPOINT)
 
     ee_plugin = EEPlugin()
     client.register_plugin(ee_plugin)
@@ -165,8 +166,9 @@ if __name__ == '__main__':
         """Distance travelled going forward in time from `a` to `b` (>= 0)."""
         return (b - a + period) % period
 
-
+    
     for i in range(gridSize):
+        start_time = time.perf_counter()
         gridCell = ee.Feature(gridList.get(i)).geometry()
 
         ##################################################################
@@ -191,18 +193,19 @@ if __name__ == '__main__':
 
         # xee returns dims (time, y, x), with x/y coordinates in the requested
         # `crs`/`scale`.
-        evi = xr.open_dataset(
+        ds = xr.open_dataset(
             col.select('EVI'),
             engine='ee',
             **grid_params,
             chunks={}
         )
 
-        if evi.sizes.get('time', 0) == 0:
+        if ds.sizes.get('time', 0) == 0:
             print(f"Tile {i}: no images found, skipping.")
             continue
 
-        #evi = ds['EVI'].transpose('time', 'y', 'x')
+        # DataSet -> DataArray
+        evi = ds['EVI'].transpose('time', 'y', 'x')
 
         # (time) with values equal to day-of-year of the observation, in [0, 365).
         doy_of_obs = evi['time'].dt.dayofyear.values.astype(float) - 1.0
@@ -316,4 +319,6 @@ if __name__ == '__main__':
         pheno_raster = pheno_raster.rio.write_crs(args.crs)
         pheno_raster.rio.to_raster(out_path)
 
-        print(f"Tile {i}/{gridSize - 1}: wrote {out_path}")
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
+        print(f"Tile {i}/{gridSize - 1}: wrote {out_path} in {elapsed_time:.2f} seconds.")
