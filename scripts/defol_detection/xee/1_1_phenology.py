@@ -1,6 +1,7 @@
 import argparse
 import os
 
+from dask.diagnostics import ProgressBar
 import ee
 import numpy as np
 import rioxarray  # noqa: F401 - registers the .rio accessor
@@ -161,13 +162,13 @@ for i in range(gridSize):
 
     if args.data == 'HLS':
         col = preprocessing.preprocess_HLS(
-            start_date, end_date, gridCell, None, False, adddoy=False, aerosol_mask=3)
+            start_date, end_date, gridCell, adddoy=False, aerosol_mask=3)
 
-    gridCell_shapely = sgeo.shape(gridCell.getInfo()['coordinates'][0])
+    gridCell_shapely = sgeo.shape(gridCell.getInfo())
     grid_params = helpers.fit_geometry(
         geometry=gridCell_shapely,
         geometry_crs='EPSG:4326',       # CRS of the input geometry
-        grid_crs=args.crs,          # Target CRS in meters (Plate Carrée)
+        grid_crs=args.crs,              # Target CRS in meters (Plate Carrée)
         grid_scale=(scale, -scale)      # Define a 10km pixel size
     )
 
@@ -177,7 +178,6 @@ for i in range(gridSize):
         col.select('EVI'),
         engine='ee',
         **grid_params,
-        geometry=gridCell_shapely,
     )
 
     if evi.sizes.get('time', 0) == 0:
@@ -272,7 +272,8 @@ for i in range(gridSize):
     SoS = ratio_diff.idxmin(dim='doy', skipna=True).rename('SoS')
     EoS = ratio_diff.idxmax(dim='doy', skipna=True).rename('EoS')
 
-    pheno = xr.Dataset({'SoS': SoS, 'EoS': EoS}).compute()
+    with ProgressBar():
+        pheno = xr.Dataset({'SoS': SoS, 'EoS': EoS}).compute()
     pheno = pheno.fillna(0).astype('uint16')
 
     for var in ('SoS', 'EoS'):
