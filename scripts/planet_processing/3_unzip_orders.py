@@ -1,3 +1,7 @@
+# The code in this module was generated with the assistance of 
+# Anthropic's Claude Sonnet 5 model. Code was then reviewed by 
+# Cameron Scholl to ensure it met the requirements of the project.
+
 import argparse
 import os
 import zipfile
