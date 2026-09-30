@@ -2,6 +2,7 @@ import argparse
 import os
 
 from dask.diagnostics import ProgressBar
+from dask.distributed import Client, WorkerPlugin
 import ee
 import numpy as np
 import rioxarray  # noqa: F401 - registers the .rio accessor
@@ -87,12 +88,28 @@ args = parser.parse_args()
 HIGH_VOLUME_ENDPOINT = 'https://earthengine-highvolume.googleapis.com'
 
 try:
-    ee.Initialize(project=args.project, opt_url=HIGH_VOLUME_ENDPOINT)
+    ee.Initialize(project=args.project)
 except Exception:
     # need to authenticate with your credential at the first time
     ee.Authenticate()
-    ee.Initialize(project=args.project, opt_url=HIGH_VOLUME_ENDPOINT)
+    ee.Initialize(project=args.project)
 
+client = Client()
+
+class EEPlugin(WorkerPlugin):
+    """A Dask plugin that initializes the Earth Engine API on each worker."""
+    def __init__(self):
+        pass
+    def setup(self, worker):
+        try:
+            ee.Initialize(project=args.project)
+        except Exception:
+            # need to authenticate with your credential at the first time
+            ee.Authenticate()
+            ee.Initialize(project=args.project)
+
+ee_plugin = EEPlugin()
+client.register_worker_plugin(ee_plugin)
 
 ##################################################################
 # Specify base names
@@ -178,6 +195,7 @@ for i in range(gridSize):
         col.select('EVI'),
         engine='ee',
         **grid_params,
+        chunks={}
     )
 
     if evi.sizes.get('time', 0) == 0:
