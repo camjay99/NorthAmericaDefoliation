@@ -109,7 +109,7 @@ if __name__ == '__main__':
                 ee.Initialize(project=args.project)
 
     ee_plugin = EEPlugin()
-    client.register_worker_plugin(ee_plugin)
+    client.register_plugin(ee_plugin)
 
     ##################################################################
     # Specify base names
