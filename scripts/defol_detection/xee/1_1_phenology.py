@@ -4,8 +4,10 @@ import os
 import ee
 import numpy as np
 import rioxarray  # noqa: F401 - registers the .rio accessor
+import shapely.geometry as sgeo
 import xarray as xr
 import xee  # noqa: F401 - registers the 'ee' xarray backend
+from xee import helpers
 
 import utils.geometries as geometries
 import utils.preprocessing as preprocessing
@@ -161,14 +163,21 @@ for i in range(gridSize):
         col = preprocessing.preprocess_HLS(
             start_date, end_date, gridCell, None, False, adddoy=False, aerosol_mask=3)
 
+    gridCell_shapely = sgeo.shape(gridCell.getInfo()['coordinates'][0])
+    grid_params = helpers.fit_geometry(
+        geometry=gridCell_shapely,
+        geometry_crs='EPSG:4326',       # CRS of the input geometry
+        grid_crs=args.crs,          # Target CRS in meters (Plate Carrée)
+        grid_scale=(scale, -scale)      # Define a 10km pixel size
+    )
+
     # xee returns dims (time, y, x), with x/y coordinates in the requested
     # `crs`/`scale`.
     evi = xr.open_dataset(
         col.select('EVI'),
         engine='ee',
-        crs=args.crs,
-        scale=scale,
-        geometry=gridCell,
+        **grid_params,
+        geometry=gridCell_shapely,
     )
 
     if evi.sizes.get('time', 0) == 0:
