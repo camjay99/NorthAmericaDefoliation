@@ -146,10 +146,10 @@ for i in range(gridSize):
 
     # Restrict the phenology window to the start of the growing season:
     # from SoS through SoS + window days.
-    early_season = ee.Image([
-        phenology.select('SoS'),
-        phenology.select('SoS').add(args.window).rename('EoS')
-    ])
+    # early_season = ee.Image([
+    #     phenology.select('SoS'),
+    #     phenology.select('SoS').add(args.window).rename('EoS')
+    # ])
 
     years = list(range(args.start, args.end + 1))
 
@@ -159,8 +159,8 @@ for i in range(gridSize):
 
         if args.data == 'HLS':
             col = preprocessing.preprocess_HLS(start_date, end_date,
-                                               gridCell, 90, 200,
-                                               phenology=early_season)
+                                               gridCell, 90, 180,
+                                               phenology=None)
 
 
         ##########################################
