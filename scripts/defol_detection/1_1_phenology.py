@@ -111,10 +111,10 @@ else:
 
 if args.cloudstorage:
     assert (args.bucket is not None), "Must specify bucket if exporting to cloud storage."
-    file_name_prefix = f'average_phenology_{name}/average_phenology_v2_{args.data}'
+    file_name_prefix = f'average_phenology_{name}/average_phenology_v3_{args.data}'
     image_manifests = {}
 description_base = f'{name}_Phenology_{args.data}'
-assetID=f'projects/{args.project}/assets/average_phenology_{name}/average_phenology_v2_{args.data}'
+assetID=f'projects/{args.project}/assets/average_phenology_{name}/average_phenology_v3_{args.data}'
 
 
 ##################################################################
@@ -142,8 +142,11 @@ for i in range(gridSize):
     end_date = ee.Date.fromYMD(args.end + 1, 1, 1)
 
     if args.data == 'HLS':
-        col = preprocessing.preprocess_HLS(start_date, end_date,
-                                           gridCell, None, False)
+        col = preprocessing.preprocess_HLS(start_date, 
+                                           end_date,
+                                           gridCell, 
+                                           adddoy=False,
+                                           aerosol_mask=3)
 
 
     #################################

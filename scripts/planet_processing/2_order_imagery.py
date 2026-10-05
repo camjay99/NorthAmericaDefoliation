@@ -29,7 +29,7 @@ parser.add_argument('--name', action='store', required=True,
                      help='Base name for the submitted orders. Each order '
                           'is named "{name}_{item_type}_{n}".')
 
-parser.add_argument('--product-bundle', action='store', default=None,
+parser.add_argument('--product-bundle', action='store', default='ortho_analytic_4b',
                      help='Orders API product bundle to request for every '
                           'scene. Defaults to a mapping based on each '
                           "scene's asset_type.")
