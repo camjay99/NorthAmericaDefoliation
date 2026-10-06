@@ -12,6 +12,7 @@ def submit_job(
         cloudstorage,
         scale=None,
         crsTransform=None,
+        shardSize=256,
         bucket=None,
         year=None,
         i=None
@@ -33,6 +34,7 @@ def submit_job(
             scale=scale,
             crsTransform=crsTransform,
             crs=crs,
+            shardSize=shardSize,
             maxPixels=1e10,
             formatOptions={
                 'cloudOptimized': True,
@@ -48,6 +50,7 @@ def submit_job(
             scale=scale,
             crsTransform=crsTransform,
             crs=crs,
+            shardSize=shardSize,
             pyramidingPolicy={'.default': 'mean'},
             maxPixels=1e10
         )

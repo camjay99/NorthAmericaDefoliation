@@ -130,7 +130,7 @@ with rasterio.open(args.reference) as dataset:
 udm_by_path = {}
 if args.udm_dir is not None:
     udm_dir = args.udm_dir
-    for filepath in image_filepaths + [args.reference]:
+    for filepath in image_filepaths:
         basename = os.path.basename(filepath)
         udm_name, n_subs = re.subn(args.udm_search, args.udm_replace, basename)
         assert n_subs > 0, (
@@ -180,13 +180,11 @@ JOIN_KEYS = ['polygon', 'row', 'col']
 
 geo_polygons = geo_targets.geometry.tolist()
 reference_geo_df = rasters.sample_polygons(
-    args.reference, geo_polygons, geo_targets.crs, bands=[args.nir_band],
-    mask_path=udm_by_path.get(args.reference))
+    args.reference, geo_polygons, geo_targets.crs, bands=[args.nir_band])
 
 radio_polygons = radio_targets.geometry.tolist()
 reference_radio_df = rasters.sample_polygons(
-    args.reference, radio_polygons, radio_targets.crs,
-    mask_path=udm_by_path.get(args.reference))
+    args.reference, radio_polygons, radio_targets.crs)
 
 kept_filepaths = []
 corrections_by_path = {}
@@ -208,8 +206,8 @@ for filepath in image_filepaths:
     geo_pairs = image_geo_df.merge(reference_geo_df, on=JOIN_KEYS,
                                     suffixes=('_image', '_reference'))
 
-    geo_fit = fit_line(geo_pairs[f'band_{args.nir_band}_image'].to_numpy(),
-                        geo_pairs[f'band_{args.nir_band}_reference'].to_numpy(),
+    geo_fit = fit_line(geo_pairs[f'band_{args.nir_band}_image'].to_numpy().astype(float),
+                        geo_pairs[f'band_{args.nir_band}_reference'].to_numpy().astype(float),
                         args.min_points)
     if geo_fit is None:
         print(f'Removed {filepath}: too few valid --geo-targets pixels.')
@@ -234,8 +232,8 @@ for filepath in image_filepaths:
     band_r2s = []
     failed_band = None
     for band_idx in range(1, band_count + 1):
-        radio_fit = fit_line(radio_pairs[f'band_{band_idx}_image'].to_numpy(),
-                              radio_pairs[f'band_{band_idx}_reference'].to_numpy(),
+        radio_fit = fit_line(radio_pairs[f'band_{band_idx}_image'].to_numpy().astype(float),
+                              radio_pairs[f'band_{band_idx}_reference'].to_numpy().astype(float),
                               args.min_points)
         if radio_fit is None:
             failed_band = band_idx

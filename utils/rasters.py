@@ -151,26 +151,26 @@ def sample_polygons(filepath, polygons, polygons_crs, bands=None,
 
             block = dataset.read(band_indexes, window=window,
                                     boundless=True, out_dtype='float64')
-            values = block[band_indexes, local_rows, local_cols]
+            values = block[(slice(None),) + (local_rows, local_cols)]
             valid = np.all(np.isfinite(values), axis=0)
             if nodata is not None:
-                valid &= values != nodata
+                valid = valid & (values != nodata)
 
-            if mask_dataset is not None:
+            if mask_path is not None:
                 with rasterio.open(mask_path) as mask_dataset:
                     mask_values = mask_dataset.read(
                         mask_band, window=window, boundless=True, fill_value=0)
-                    valid &= mask_values[local_rows, local_cols] == mask_valid_value
+                    valid = valid & (mask_values[local_rows, local_cols] == mask_valid_value)
 
             if not valid.any():
                 continue
 
             info = {
                 'polygon': polygon_idx,
-                'row': local_rows[valid],
-                'col': local_cols[valid],
+                'row': local_rows[valid.reshape(-1)],
+                'col': local_cols[valid.reshape(-1)],
                 }
-            bands_out = {f'band_{band_idx}': values[valid, i]
+            bands_out = {f'band_{band_idx}': values[i, valid.reshape(-1)]
                             for i, band_idx in enumerate(band_indexes)}
             records.append(pd.DataFrame(info | bands_out))
 

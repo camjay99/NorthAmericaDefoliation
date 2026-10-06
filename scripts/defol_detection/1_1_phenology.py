@@ -248,6 +248,7 @@ for i in range(gridSize):
             description_base=description_base,
             scale=preprocessing.resolutions[args.data],
             crs=args.crs,
+            shardSize=128,
             region=gridCell,
             cloudstorage=args.cloudstorage,
             bucket=args.bucket,
@@ -266,6 +267,8 @@ for i in range(gridSize):
                 'project':'NorthAmerica'
             },
             bucket=args.bucket,
+            model_start=args.start,
+            model_end=args.end,
             i=i
         )
         
