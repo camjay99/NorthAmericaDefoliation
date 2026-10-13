@@ -164,7 +164,6 @@ for i in range(gridSize):
                                                 gridCell,
                                                 90,
                                                 180,
-                                                adddoy=False,
                                                 mask_vals=mask_vals)
 
 

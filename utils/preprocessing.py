@@ -86,7 +86,7 @@ def preprocess_HLS(start_date, end_date, geometry,
         # We mask clouds, shadows, adjecent areas, water and moderate/high aerosol.
         # Note that small clouds/shadows are often incorrectly classified as aerosols.
         if mask_vals is not None:
-            mask = image.select('Fmask').remap(mask_vals, [1]*len(mask_vals), 0, 'Fmask')
+            mask = image.select('Fmask').remap(mask_vals, [0]*len(mask_vals), 1, 'Fmask')
         ## Cloud Score+ for HLS S30 images
         # Fmask fails to detect cloud shadows and haze quite frequently for 
         # Sentinel-2 images, thus we also rely on a dedicated usability score 

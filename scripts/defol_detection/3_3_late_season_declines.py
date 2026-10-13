@@ -205,7 +205,6 @@ for i in range(gridSize):
                                                 args.start_doy,
                                                 args.end_doy,
                                                 phenology,
-                                                adddoy=False,
                                                 mask_vals=mask_vals)
 
 
