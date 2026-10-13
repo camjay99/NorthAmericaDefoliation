@@ -198,10 +198,15 @@ for i in range(gridSize):
             # Phenology carries this pixel's real SoS/EoS bands, so the
             # per-pixel mask in preprocess_HLS clips the window to
             # [start_doy, EoS] even though end_doy is a wide fixed bound.
-            col = preprocessing.preprocess_HLS(start_date, end_date,
-                                               gridCell,
-                                               args.start_doy, args.end_doy,
-                                               phenology)
+            mask_vals = preprocessing.create_fmask(aerosol_mask=3)
+            col = preprocessing.preprocess_HLS(start_date,
+                                                end_date,
+                                                gridCell,
+                                                args.start_doy,
+                                                args.end_doy,
+                                                phenology,
+                                                adddoy=False,
+                                                mask_vals=mask_vals)
 
 
         ######################################
