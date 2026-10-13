@@ -154,8 +154,7 @@ def sample_polygons(filepath, polygons, polygons_crs, bands=None,
             values = block[(slice(None),) + (local_rows, local_cols)]
             valid = np.all(np.isfinite(values), axis=0)
             if nodata is not None:
-                valid = valid & (values != nodata)
-
+                valid = valid & np.any((values != nodata), axis=0)
             if mask_path is not None:
                 with rasterio.open(mask_path) as mask_dataset:
                     mask_values = mask_dataset.read(

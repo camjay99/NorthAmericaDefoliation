@@ -110,9 +110,9 @@ else:
 
 if args.cloudstorage:
     assert (args.bucket is not None), "Must specify bucket if exporting to cloud storage."
-    file_name_prefix = f'defoliation_score_{name}/defoliation_score_v3_{args.data}'
+    file_name_prefix = f'defoliation_score_{name}/defoliation_score_v4_{args.data}'
     image_manifests = {}
-assetID = f'projects/{args.project}/assets/defoliation_score_{name}/defoliation_score_v3_{args.data}'
+assetID = f'projects/{args.project}/assets/defoliation_score_{name}/defoliation_score_v4_{args.data}'
 description_base = f'{name}_Defoliation_{args.data}'
 
 pheno_coll = ee.ImageCollection(f'projects/{args.project}/assets/average_phenology_{name}')
@@ -195,10 +195,12 @@ for i in range(gridSize):
         end_date = ee.Date.fromYMD(year + 1, 1, 1)
 
         if args.data == 'HLS':
-            col = preprocessing.preprocess_HLS(start_date, end_date,
-                                               gridCell, 
-                                               args.start_doy, args.end_doy,
-                                               phenology)
+            mask_vals = preprocessing.create_fmask(aerosol_mask=3)
+            col = preprocessing.preprocess_HLS(start_date,
+                                                end_date,
+                                                gridCell,
+                                                adddoy=False,
+                                                mask_vals=mask_vals)
 
         
         ######################################

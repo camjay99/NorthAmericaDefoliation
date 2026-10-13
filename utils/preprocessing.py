@@ -1,3 +1,5 @@
+import itertools
+
 import ee
 
 sources = ['HLS']
@@ -7,12 +9,7 @@ resolutions = {'HLS':30}
 def preprocess_HLS(start_date, end_date, geometry, 
                    start_doy=0, end_doy=365, phenology=None, 
                    adddoy=True, 
-                   aerosol_mask=None,
-                   water_mask=True,
-                   snow_mask=False,
-                   shadow_mask=True,
-                   adjacent_mask=True,
-                   cloud_mask=True):
+                   mask_vals=None):
     # fmask is a tuple with the first element representing the aerosol mask, 
     # and the second the rest of the masks. Passing a list will create several masks.
     
@@ -88,13 +85,8 @@ def preprocess_HLS(start_date, end_date, geometry,
         # Bit 6-7 Aerosol level
         # We mask clouds, shadows, adjecent areas, water and moderate/high aerosol.
         # Note that small clouds/shadows are often incorrectly classified as aerosols.
-        mask = _create_fmask(image.select('Fmask'),
-                             aerosol_mask=aerosol_mask,
-                             water_mask=water_mask,
-                             snow_mask=snow_mask,
-                             shadow_mask=shadow_mask,
-                             adjacent_mask=adjacent_mask,
-                             cloud_mask=cloud_mask)
+        if mask_vals is not None:
+            mask = image.select('Fmask').remap(mask_vals, [1]*len(mask_vals), 0, 'Fmask')
         ## Cloud Score+ for HLS S30 images
         # Fmask fails to detect cloud shadows and haze quite frequently for 
         # Sentinel-2 images, thus we also rely on a dedicated usability score 
@@ -157,3 +149,23 @@ def _create_fmask(fmask,
     mask = fmask.bitwiseAnd(mask_val).eq(0)
     mask = mask.And(aerosols)
     return mask
+
+def create_fmask(aerosol_mask=None,
+                 water_mask=True,
+                 snow_mask=False,
+                 shadow_mask=True,
+                 adjacent_mask=True,
+                 cloud_mask=True):
+    base_mask_vals = set()
+    base_mask_vals.add(aerosol_mask*64)
+    base_mask_vals.add(water_mask*32)
+    base_mask_vals.add(snow_mask*16)
+    base_mask_vals.add(shadow_mask*8)
+    base_mask_vals.add(adjacent_mask*4)
+    base_mask_vals.add(cloud_mask*2)
+    mask_vals = list(base_mask_vals)
+    for i in range(2, len(base_mask_vals)+1):
+        for combination in itertools.combinations(base_mask_vals, i):
+            mask_val = sum(combination)
+            mask_vals.append(mask_val) 
+    return mask_vals

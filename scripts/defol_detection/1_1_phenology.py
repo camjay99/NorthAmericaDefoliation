@@ -142,11 +142,12 @@ for i in range(gridSize):
     end_date = ee.Date.fromYMD(args.end + 1, 1, 1)
 
     if args.data == 'HLS':
-        col = preprocessing.preprocess_HLS(start_date, 
-                                           end_date,
-                                           gridCell, 
-                                           adddoy=False,
-                                           aerosol_mask=3)
+        mask_vals = preprocessing.create_fmask(aerosol_mask=3)
+        col = preprocessing.preprocess_HLS(start_date,
+                                            end_date,
+                                            gridCell,
+                                            adddoy=False,
+                                            mask_vals=mask_vals)
 
 
     #################################

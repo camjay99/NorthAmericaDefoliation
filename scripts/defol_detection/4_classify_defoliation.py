@@ -107,21 +107,21 @@ description_base = f'{name}_ForestStatus_{args.data}'
 
 all_years_early_season_coll = (
     ee.ImageCollection(
-        f'projects/{args.project}/all_years_max_early_season_evi_{name}/')
+        f'projects/{args.project}/assets/all_years_max_early_season_evi_{name}/')
         .filter(ee.Filter.eq('source', args.data))
         .filter(ee.Filter.eq('start', args.model_start))
         .filter(ee.Filter.eq('end', args.model_end))
         .filter(ee.Filter.eq('project', 'NorthAmerica')))
 yearly_early_season_coll = (
     ee.ImageCollection(
-        f'projects/{args.project}/yearly_max_early_season_evi_{name}/')
+        f'projects/{args.project}/assets/yearly_max_early_season_evi_{name}/')
         .filter(ee.Filter.eq('source', args.data))
         .filter(ee.Filter.eq('start', args.model_start))
         .filter(ee.Filter.eq('end', args.model_end))
         .filter(ee.Filter.eq('project', 'NorthAmerica')))
 mid_season_coll = (
     ee.ImageCollection(
-        f'projects/{args.project}/defoliation_score_{name}/')
+        f'projects/{args.project}/assets/defoliation_score_{name}/')
         .filter(ee.Filter.eq('source', args.data))
         .filter(ee.Filter.eq('start', args.model_start))
         .filter(ee.Filter.eq('end', args.model_end))
